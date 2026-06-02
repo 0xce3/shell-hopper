@@ -28,6 +28,14 @@ function Install-Info {
     Write-Host "  - $Message"
 }
 
+function ConvertTo-ShellSingleQuoted {
+    param([string]$Value)
+
+    $quote = [string][char]39
+    $escapedQuote = "$quote`"$quote`"$quote"
+    return $quote + $Value.Replace($quote, $escapedQuote) + $quote
+}
+
 function Invoke-Wsl {
     param(
         [string]$Command,
@@ -198,11 +206,12 @@ if (-not $SkipFontInstall) {
     Install-Info "Font installation skipped by parameter"
 }
 
-$bootstrap = @"
+$bootstrap = @'
 set -euo pipefail
-repo_url='$RepoUrl'
-say() { printf '\n%s\n' "[`$1] `$2"; }
-info() { printf '  - %s\n' "`$1"; }
+repo_url=__REPO_URL__
+nvim_config_repo=__NVIM_CONFIG_REPO__
+say() { printf '\n%s\n' "[$1] $2"; }
+info() { printf '  - %s\n' "$1"; }
 
 say 1 'Installing ShellHopper launcher files'
 mkdir -p ~/.local/bin ~/.config/shellhopper
@@ -233,16 +242,16 @@ else
   info 'Docker CLI found'
 fi
 
-if [ '$NvimConfigRepo' != '' ]; then
+if [ "$nvim_config_repo" != '' ]; then
   say 5 'Syncing Neovim config'
   if [ -d ~/.config/nvim/.git ]; then
-    git -C ~/.config/nvim remote set-url origin '$NvimConfigRepo'
+    git -C ~/.config/nvim remote set-url origin "$nvim_config_repo"
     git -C ~/.config/nvim pull --ff-only
   else
     if [ -e ~/.config/nvim ]; then
-      mv ~/.config/nvim ~/.config/nvim.backup.`$(date +%Y%m%d%H%M%S)
+      mv ~/.config/nvim ~/.config/nvim.backup.$(date +%Y%m%d%H%M%S)
     fi
-    git clone '$NvimConfigRepo' ~/.config/nvim
+    git clone "$nvim_config_repo" ~/.config/nvim
   fi
   nvim --headless '+Lazy! sync' '+qa'
 else
@@ -251,7 +260,10 @@ else
 fi
 
 say 6 'WSL setup complete'
-"@
+'@
+
+$bootstrap = $bootstrap.Replace("__REPO_URL__", (ConvertTo-ShellSingleQuoted $RepoUrl))
+$bootstrap = $bootstrap.Replace("__NVIM_CONFIG_REPO__", (ConvertTo-ShellSingleQuoted $NvimConfigRepo))
 
 Install-Step "Prepare WSL development tools"
 Invoke-Wsl $bootstrap -Description "Installing ShellHopper files, packages, tmux, and optional Neovim config"
