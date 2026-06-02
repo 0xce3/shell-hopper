@@ -4,8 +4,12 @@ $ProgressPreference = "SilentlyContinue"
 $repo = "0xce3/shell-hopper"
 $ref = "main"
 $installerPath = Join-Path $env:TEMP "shellhopper-install.ps1"
-$installerUrl = "https://api.github.com/repos/$repo/contents/install.ps1?ref=$ref"
+$commitUrl = "https://api.github.com/repos/$repo/commits/$ref"
 $logPath = Join-Path $env:TEMP "shellhopper-bootstrap.log"
+$headers = @{
+    "Cache-Control" = "no-cache"
+    "Pragma" = "no-cache"
+}
 
 function Wait-OnFailure {
     param([string]$Message)
@@ -25,11 +29,25 @@ try {
 
     Write-Host "ShellHopper bootstrap"
     Write-Host "  - Log: $logPath"
-    Write-Host "  - Downloading latest installer from $repo@$ref"
+    Write-Host "  - Resolving latest commit for $repo@$ref"
 
-    $installer = Invoke-RestMethod -Uri $installerUrl
+    $commit = Invoke-RestMethod -Uri $commitUrl -Headers $headers
+    $sha = $commit.sha
+    if (-not $sha) {
+        throw "Could not resolve latest commit for $repo@$ref"
+    }
+
+    $installerUrl = "https://api.github.com/repos/$repo/contents/install.ps1?ref=$sha"
+    Write-Host "  - Downloading installer from commit $($sha.Substring(0, 7))"
+
+    $installer = Invoke-RestMethod -Uri $installerUrl -Headers $headers
     $content = [Convert]::FromBase64String(($installer.content -replace "\s", ""))
     [IO.File]::WriteAllBytes($installerPath, $content)
+
+    $installerText = [Text.Encoding]::UTF8.GetString($content)
+    if (-not $installerText.Contains('$bootstrap = @''')) {
+        throw "Downloaded installer did not contain the expected WSL quoting fix"
+    }
 
     Write-Host "  - Running installer"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $installerPath
