@@ -21,10 +21,11 @@ bash -n "$loader"
 grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL exit codes"
 grep -q 'test -x ~/.local/bin/shellhopper' "$repo_root/install.ps1" || fail "Windows Terminal profile bootstraps missing shellhopper"
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
-grep -q 'JetBrainsMono Nerd Font' "$repo_root/install.ps1" || fail "install.ps1 configures JetBrainsMono Nerd Font"
-grep -q 'ryanoasis/nerd-fonts' "$repo_root/install.ps1" || fail "install.ps1 downloads Nerd Fonts from the official release repo"
 grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
+if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
+  fail "install.ps1 must not install or configure fonts"
+fi
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
 fi
