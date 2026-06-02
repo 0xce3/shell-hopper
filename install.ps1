@@ -11,6 +11,9 @@ $ErrorActionPreference = "Stop"
 function Invoke-Wsl {
     param([string]$Command)
     wsl.exe -d $WslDistribution -- bash -lc $Command
+    if ($LASTEXITCODE -ne 0) {
+        throw "WSL command failed with exit code $LASTEXITCODE"
+    }
 }
 
 function Get-WindowsTerminalSettingsPath {
@@ -71,7 +74,11 @@ $bootstrap = @"
 set -euo pipefail
 repo_url='$RepoUrl'
 sudo apt-get update
-sudo apt-get install -y curl git fzf jq docker.io neovim ripgrep fd-find
+sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find
+if ! command -v docker >/dev/null 2>&1; then
+  echo 'Docker CLI not found in WSL. ShellHopper will still work for WSL entries.'
+  echo 'For container entries, install Docker Desktop WSL integration or a compatible Docker CLI.'
+fi
 mkdir -p ~/.local/bin ~/.config/shellhopper
 tmp_dir=`$(mktemp -d)
 git clone --depth=1 "`$repo_url" "`$tmp_dir/shell-hopper"

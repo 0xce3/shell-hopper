@@ -8,3 +8,4 @@ The Windows installer:
 4. Adds or updates a Windows Terminal profile named `ShellHopper`.
 5. Optionally clones and syncs a Neovim config when `-NvimConfigRepo` is provided.
 
+Docker is not installed by default. ShellHopper uses the existing `docker` CLI when it is available inside WSL.

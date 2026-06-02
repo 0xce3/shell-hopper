@@ -18,6 +18,11 @@ assert_contains() {
 [[ -f "$loader" ]] || fail "shellhopper.sh exists"
 bash -n "$loader"
 
+grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL exit codes"
+if grep -q 'docker.io' "$repo_root/install.ps1"; then
+  fail "install.ps1 must not install docker.io"
+fi
+
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 

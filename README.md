@@ -82,14 +82,14 @@ The installer prepares the WSL side with:
 - `curl`
 - `fzf`
 - `jq`
-- `docker.io`
 - `neovim`
 - `ripgrep`
 - `fd-find`
+
+Docker is intentionally not installed by ShellHopper because many Windows + WSL setups use Docker Desktop or another Docker package source. Container entries work when `docker` is available inside WSL.
 
 For devcontainer support, install the devcontainer CLI inside WSL:
 
 ```sh
 npm install -g @devcontainers/cli
 ```
-
