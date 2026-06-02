@@ -17,7 +17,6 @@ assert_contains() {
 
 [[ -f "$loader" ]] || fail "shellhopper.sh exists"
 [[ -f "$repo_root/bootstrap.ps1" ]] || fail "bootstrap.ps1 exists"
-[[ -f "$repo_root/shellhopper.ps1" ]] || fail "shellhopper.ps1 exists"
 bash -n "$loader"
 
 grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL exit codes"
@@ -38,9 +37,7 @@ grep -q 'Start-Transcript' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 wri
 grep -q 'Wait-OnFailure' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 waits on failure"
 grep -q 'commits/$ref' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 resolves main to a commit SHA"
 grep -q 'expected WSL quoting fix' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 validates installer content"
-grep -q 'commits/$ref' "$repo_root/shellhopper.ps1" || fail "shellhopper.ps1 resolves main to a commit SHA"
-grep -q 'expected WSL quoting fix' "$repo_root/shellhopper.ps1" || fail "shellhopper.ps1 validates installer content"
-grep -Fq 'irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/shellhopper.ps1 | iex' "$repo_root/README.md" || fail "README keeps one-command install"
+grep -Fq 'irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/bootstrap.ps1 | iex' "$repo_root/README.md" || fail "README keeps one-command install"
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
 fi
