@@ -43,7 +43,7 @@ function Invoke-Wsl {
     )
 
     Install-Info "$Description in $WslDistribution"
-    $Command | wsl.exe -d $WslDistribution -- bash -s
+    wsl.exe -d $WslDistribution -- bash -lc $Command
     if ($LASTEXITCODE -ne 0) {
         throw "WSL command failed with exit code $LASTEXITCODE"
     }
