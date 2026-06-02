@@ -18,6 +18,12 @@ For custom installer parameters, download the installer first:
 $ProgressPreference = "SilentlyContinue"; $installer = Invoke-RestMethod "https://api.github.com/repos/0xce3/shell-hopper/contents/install.ps1?ref=main"; $path = Join-Path $env:TEMP "shellhopper-install.ps1"; [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String(($installer.content -replace "\s", "")))
 ```
 
+Skip font installation when your terminal font is already configured:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File $path -SkipFontInstall
+```
+
 Use a specific WSL distribution:
 
 ```powershell
@@ -101,7 +107,13 @@ The installer prepares the WSL side with:
 - `fd-find`
 - `tmux`
 
-On Windows, the installer creates the ShellHopper Windows Terminal profile and sets a ShellHopper profile icon. Fonts are not installed by ShellHopper; install a Nerd Font manually if your terminal UI needs icon glyphs.
+On Windows, the installer also installs `JetBrainsMono Nerd Font`, configures the ShellHopper Windows Terminal profile to use it, and sets a ShellHopper profile icon. The font enables icons in terminal UIs such as Neovim file explorers.
+
+Skip font installation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File $path -SkipFontInstall
+```
 
 Docker is intentionally not installed by ShellHopper because many Windows + WSL setups use Docker Desktop or another Docker package source. Container entries work when `docker` is available inside WSL.
 

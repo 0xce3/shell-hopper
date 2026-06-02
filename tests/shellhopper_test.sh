@@ -25,15 +25,15 @@ grep -q 'cat > "\$script_path"' "$repo_root/install.ps1" || fail "install.ps1 pa
 grep -q '/dev/tty' "$repo_root/install.ps1" || fail "install.ps1 restores terminal input for sudo prompts"
 grep -q 'test -x ~/.local/bin/shellhopper' "$repo_root/install.ps1" || fail "Windows Terminal profile bootstraps missing shellhopper"
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
+grep -q 'JetBrainsMono Nerd Font' "$repo_root/install.ps1" || fail "install.ps1 configures JetBrainsMono Nerd Font"
+grep -q 'ryanoasis/nerd-fonts' "$repo_root/install.ps1" || fail "install.ps1 downloads Nerd Fonts from the official release repo"
 grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 grep -q 'Install-Step' "$repo_root/install.ps1" || fail "install.ps1 uses readable installation steps"
 grep -q 'SilentlyContinue' "$repo_root/install.ps1" || fail "install.ps1 suppresses noisy download progress"
 grep -q 'Installing WSL packages' "$repo_root/install.ps1" || fail "install.ps1 explains WSL package installation"
+grep -q 'Test-NerdFontInstalled' "$repo_root/install.ps1" || fail "install.ps1 detects already installed Nerd Fonts"
 grep -q "\$bootstrap = @'" "$repo_root/install.ps1" || fail "install.ps1 protects Bash bootstrap from PowerShell interpolation"
-if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
-  fail "install.ps1 must not install or configure fonts"
-fi
 grep -q 'api.github.com/repos' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 uses GitHub API installer download"
 grep -q 'contents/install.ps1' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 downloads install.ps1"
 grep -q 'Start-Transcript' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 writes a log"
