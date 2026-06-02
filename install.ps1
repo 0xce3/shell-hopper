@@ -46,7 +46,8 @@ function Install-WindowsTerminalProfile {
         $settings.profiles | Add-Member -MemberType NoteProperty -Name list -Value @()
     }
 
-    $commandLine = "wsl.exe -d $WslDistribution -- bash -lc `"~/.local/bin/shellhopper`""
+    $bootstrapCommand = "test -x ~/.local/bin/shellhopper || { mkdir -p ~/.local/bin ~/.config/shellhopper; curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/scripts/shellhopper.sh -o ~/.local/bin/shellhopper; chmod +x ~/.local/bin/shellhopper; test -f ~/.config/shellhopper/projects.tsv || curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv; }; exec ~/.local/bin/shellhopper"
+    $commandLine = "wsl.exe -d $WslDistribution -- bash -lc `"$bootstrapCommand`""
     $existing = $settings.profiles.list | Where-Object { $_.name -eq $ProfileName } | Select-Object -First 1
 
     if ($existing) {
@@ -73,18 +74,20 @@ Write-Host "Preparing WSL distribution: $WslDistribution"
 $bootstrap = @"
 set -euo pipefail
 repo_url='$RepoUrl'
-sudo apt-get update
-sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find
+mkdir -p ~/.local/bin ~/.config/shellhopper
+curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/scripts/shellhopper.sh -o ~/.local/bin/shellhopper
+chmod +x ~/.local/bin/shellhopper
+if [ ! -f ~/.config/shellhopper/projects.tsv ]; then
+  curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv
+fi
+sudo apt-get update || true
+sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find || {
+  echo 'Optional package installation failed. ShellHopper itself is installed.'
+  echo 'Install missing tools manually if selection or editor features are unavailable.'
+}
 if ! command -v docker >/dev/null 2>&1; then
   echo 'Docker CLI not found in WSL. ShellHopper will still work for WSL entries.'
   echo 'For container entries, install Docker Desktop WSL integration or a compatible Docker CLI.'
-fi
-mkdir -p ~/.local/bin ~/.config/shellhopper
-tmp_dir=`$(mktemp -d)
-git clone --depth=1 "`$repo_url" "`$tmp_dir/shell-hopper"
-install -m 0755 "`$tmp_dir/shell-hopper/scripts/shellhopper.sh" ~/.local/bin/shellhopper
-if [ ! -f ~/.config/shellhopper/projects.tsv ]; then
-  cp "`$tmp_dir/shell-hopper/templates/projects.tsv" ~/.config/shellhopper/projects.tsv
 fi
 if [ '$NvimConfigRepo' != '' ]; then
   if [ -d ~/.config/nvim/.git ]; then
@@ -98,7 +101,6 @@ if [ '$NvimConfigRepo' != '' ]; then
   fi
   nvim --headless '+Lazy! sync' '+qa'
 fi
-rm -rf "`$tmp_dir"
 echo 'ShellHopper installed.'
 "@
 
