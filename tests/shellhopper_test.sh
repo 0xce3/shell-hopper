@@ -25,9 +25,6 @@ grep -q 'JetBrainsMono Nerd Font' "$repo_root/install.ps1" || fail "install.ps1 
 grep -q 'ryanoasis/nerd-fonts' "$repo_root/install.ps1" || fail "install.ps1 downloads Nerd Fonts from the official release repo"
 grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
-grep -q 'Install-Step' "$repo_root/install.ps1" || fail "install.ps1 uses readable installation steps"
-grep -q 'SilentlyContinue' "$repo_root/install.ps1" || fail "install.ps1 suppresses noisy download progress"
-grep -q 'Installing WSL packages' "$repo_root/install.ps1" || fail "install.ps1 explains WSL package installation"
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
 fi

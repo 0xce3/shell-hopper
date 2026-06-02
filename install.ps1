@@ -10,31 +10,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-$script:InstallStep = 0
-$script:InstallStepTotal = 4
-
-function Install-Step {
-    param([string]$Message)
-
-    $script:InstallStep += 1
-    Write-Host ""
-    Write-Host "[$script:InstallStep/$script:InstallStepTotal] $Message"
-}
-
-function Install-Info {
-    param([string]$Message)
-
-    Write-Host "  - $Message"
-}
 
 function Invoke-Wsl {
-    param(
-        [string]$Command,
-        [string]$Description = "Running WSL command"
-    )
-
-    Install-Info "$Description in $WslDistribution"
+    param([string]$Command)
     wsl.exe -d $WslDistribution -- bash -lc $Command
     if ($LASTEXITCODE -ne 0) {
         throw "WSL command failed with exit code $LASTEXITCODE"
@@ -66,11 +44,11 @@ function Install-NerdFont {
     $markerFont = Join-Path $fontsDir "JetBrainsMonoNerdFont-Regular.ttf"
 
     if (Test-Path $markerFont) {
-        Install-Info "$Name is already installed"
+        Write-Host "$Name is already installed."
         return
     }
 
-    Install-Info "Downloading $Name"
+    Write-Host "Installing $Name..."
     New-Item -ItemType Directory -Force -Path $fontsDir | Out-Null
 
     $tempDir = Join-Path $env:TEMP "shellhopper-font-$([guid]::NewGuid().ToString())"
@@ -79,13 +57,11 @@ function Install-NerdFont {
 
     try {
         Invoke-WebRequest -Uri $DownloadUrl -OutFile $zipPath
-        Install-Info "Extracting font files"
         Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
 
         $fontFiles = Get-ChildItem $tempDir -Filter "*.ttf" -Recurse |
             Where-Object { $_.Name -like "JetBrainsMonoNerdFont*.ttf" }
 
-        Install-Info "Registering $($fontFiles.Count) font files for the current Windows user"
         foreach ($fontFile in $fontFiles) {
             $destination = Join-Path $fontsDir $fontFile.Name
             Copy-Item $fontFile.FullName $destination -Force
@@ -102,17 +78,16 @@ function Install-NerdFont {
         Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    Install-Info "$Name installed"
+    Write-Host "$Name installed."
 }
 
 function Install-WindowsTerminalProfile {
     $settingsPath = Get-WindowsTerminalSettingsPath
     if (-not $settingsPath) {
-        Install-Info "Windows Terminal settings.json not found; skipping profile creation"
+        Write-Host "Windows Terminal settings.json not found. Skipping profile creation."
         return
     }
 
-    Install-Info "Updating Windows Terminal profile '$ProfileName'"
     $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
     if (-not $settings.profiles) {
         $settings | Add-Member -MemberType NoteProperty -Name profiles -Value ([pscustomobject]@{ list = @() })
@@ -155,58 +130,35 @@ function Install-WindowsTerminalProfile {
     $backupPath = "$settingsPath.backup.$(Get-Date -Format yyyyMMddHHmmss)"
     Copy-Item $settingsPath $backupPath
     $settings | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $settingsPath
-    Install-Info "Windows Terminal profile installed: $ProfileName"
-    Install-Info "Backup written to $backupPath"
+    Write-Host "Windows Terminal profile installed: $ProfileName"
+    Write-Host "Backup: $backupPath"
 }
 
-Write-Host "ShellHopper installer"
-Write-Host "Target WSL distribution: $WslDistribution"
+Write-Host "Preparing WSL distribution: $WslDistribution"
 
 if (-not $SkipFontInstall) {
-    Install-Step "Install terminal font"
     Install-NerdFont -Name $FontFace
-} else {
-    Install-Step "Skip terminal font"
-    Install-Info "Font installation skipped by parameter"
 }
 
 $bootstrap = @"
 set -euo pipefail
 repo_url='$RepoUrl'
-say() { printf '\n%s\n' "[`$1] `$2"; }
-info() { printf '  - %s\n' "`$1"; }
-
-say 1 'Installing ShellHopper launcher files'
 mkdir -p ~/.local/bin ~/.config/shellhopper
 curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/scripts/shellhopper.sh -o ~/.local/bin/shellhopper
 chmod +x ~/.local/bin/shellhopper
-info 'Installed ~/.local/bin/shellhopper'
 if [ ! -f ~/.config/shellhopper/projects.tsv ]; then
   curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv
-  info 'Created ~/.config/shellhopper/projects.tsv'
-else
-  info 'Keeping existing ~/.config/shellhopper/projects.tsv'
 fi
-
-say 2 'Updating apt package index'
 sudo apt-get update || true
-
-say 3 'Installing WSL packages'
 sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find tmux || {
   echo 'Optional package installation failed. ShellHopper itself is installed.'
   echo 'Install missing tools manually if selection or editor features are unavailable.'
 }
-
-say 4 'Checking Docker CLI'
 if ! command -v docker >/dev/null 2>&1; then
   echo 'Docker CLI not found in WSL. ShellHopper will still work for WSL entries.'
   echo 'For container entries, install Docker Desktop WSL integration or a compatible Docker CLI.'
-else
-  info 'Docker CLI found'
 fi
-
 if [ '$NvimConfigRepo' != '' ]; then
-  say 5 'Syncing Neovim config'
   if [ -d ~/.config/nvim/.git ]; then
     git -C ~/.config/nvim remote set-url origin '$NvimConfigRepo'
     git -C ~/.config/nvim pull --ff-only
@@ -217,27 +169,16 @@ if [ '$NvimConfigRepo' != '' ]; then
     git clone '$NvimConfigRepo' ~/.config/nvim
   fi
   nvim --headless '+Lazy! sync' '+qa'
-else
-  say 5 'Skipping Neovim config sync'
-  info 'No -NvimConfigRepo parameter provided'
 fi
-
-say 6 'WSL setup complete'
+echo 'ShellHopper installed.'
 "@
 
-Install-Step "Prepare WSL development tools"
-Invoke-Wsl $bootstrap -Description "Installing ShellHopper files, packages, tmux, and optional Neovim config"
+Invoke-Wsl $bootstrap
 
 if (-not $SkipWindowsTerminalProfile) {
-    Install-Step "Configure Windows Terminal profile"
     Install-WindowsTerminalProfile
-} else {
-    Install-Step "Skip Windows Terminal profile"
-    Install-Info "Windows Terminal profile creation skipped by parameter"
 }
 
-Install-Step "Finish"
-Install-Info "ShellHopper installed"
-Install-Info "Open Windows Terminal profile '$ProfileName'"
-Install-Info "Or run: wsl.exe -d $WslDistribution -- bash -lc '~/.local/bin/shellhopper'"
 Write-Host ""
+Write-Host "Open Windows Terminal profile '$ProfileName' or run:"
+Write-Host "  wsl.exe -d $WslDistribution -- bash -lc '~/.local/bin/shellhopper'"
