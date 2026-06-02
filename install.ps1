@@ -56,35 +56,6 @@ function Get-WindowsTerminalSettingsPath {
     return $null
 }
 
-function Test-NerdFontInstalled {
-    param([string]$Name)
-
-    $fontsDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
-    if (Get-ChildItem $fontsDir -Filter "JetBrainsMonoNerdFont*.ttf" -ErrorAction SilentlyContinue) {
-        return $true
-    }
-
-    $registryPaths = @(
-        "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts",
-        "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Fonts"
-    )
-
-    foreach ($registryPath in $registryPaths) {
-        $fonts = Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue
-        if (-not $fonts) {
-            continue
-        }
-
-        foreach ($property in $fonts.PSObject.Properties) {
-            if ($property.Name -like "*JetBrainsMono*Nerd*" -or $property.Value -like "*JetBrainsMono*Nerd*") {
-                return $true
-            }
-        }
-    }
-
-    return $false
-}
-
 function Install-NerdFont {
     param(
         [string]$Name,
@@ -92,8 +63,9 @@ function Install-NerdFont {
     )
 
     $fontsDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+    $markerFont = Join-Path $fontsDir "JetBrainsMonoNerdFont-Regular.ttf"
 
-    if (Test-NerdFontInstalled -Name $Name) {
+    if (Test-Path $markerFont) {
         Install-Info "$Name is already installed"
         return
     }

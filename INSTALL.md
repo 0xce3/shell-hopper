@@ -15,11 +15,5 @@ Docker is not installed by default. ShellHopper uses the existing `docker` CLI w
 The Windows Terminal profile icon can be changed during installation:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File $path -ProfileIcon "⚡"
-```
-
-The installer skips font installation automatically when JetBrainsMono Nerd Font is already registered in Windows. You can also force the skip:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File $path -SkipFontInstall
+powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1 -ProfileIcon "⚡"
 ```

@@ -28,8 +28,6 @@ grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 grep -q 'Install-Step' "$repo_root/install.ps1" || fail "install.ps1 uses readable installation steps"
 grep -q 'SilentlyContinue' "$repo_root/install.ps1" || fail "install.ps1 suppresses noisy download progress"
 grep -q 'Installing WSL packages' "$repo_root/install.ps1" || fail "install.ps1 explains WSL package installation"
-grep -q 'Test-NerdFontInstalled' "$repo_root/install.ps1" || fail "install.ps1 detects already installed Nerd Fonts"
-grep -q 'api.github.com/repos/0xce3/shell-hopper/contents/install.ps1' "$repo_root/README.md" || fail "README uses GitHub API installer download"
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
 fi
