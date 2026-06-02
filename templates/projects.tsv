@@ -1,0 +1,3 @@
+# name	kind	target	workspace	command
+# example	wsl	-	/home/user/src/example	nvim
+# example-container	container	my-dev-container	/workspaces/example	nvim
