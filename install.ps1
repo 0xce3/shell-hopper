@@ -4,6 +4,7 @@ param(
     [string]$RepoUrl = "https://github.com/0xce3/shell-hopper.git",
     [string]$NvimConfigRepo = "",
     [string]$FontFace = "JetBrainsMono Nerd Font",
+    [string]$ProfileIcon = "⚡",
     [switch]$SkipFontInstall,
     [switch]$SkipWindowsTerminalProfile
 )
@@ -108,12 +109,17 @@ function Install-WindowsTerminalProfile {
             $existing.font | Add-Member -MemberType NoteProperty -Name face -Value $FontFace
         }
         $existing.font.face = $FontFace
+        if (-not $existing.PSObject.Properties["icon"]) {
+            $existing | Add-Member -MemberType NoteProperty -Name icon -Value $ProfileIcon
+        }
+        $existing.icon = $ProfileIcon
     } else {
         $profile = [pscustomobject]@{
             guid = "{$([guid]::NewGuid().ToString())}"
             name = $ProfileName
             commandline = $commandLine
             startingDirectory = "%USERPROFILE%"
+            icon = $ProfileIcon
             font = [pscustomobject]@{
                 face = $FontFace
             }
@@ -144,7 +150,7 @@ if [ ! -f ~/.config/shellhopper/projects.tsv ]; then
   curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv
 fi
 sudo apt-get update || true
-sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find || {
+sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find tmux || {
   echo 'Optional package installation failed. ShellHopper itself is installed.'
   echo 'Install missing tools manually if selection or editor features are unavailable.'
 }

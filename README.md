@@ -51,6 +51,19 @@ Use a custom registry:
 shellhopper --config ~/.config/shellhopper/projects.tsv
 ```
 
+By default, ShellHopper opens the selected environment through `tmux`. New sessions get these windows:
+
+- `ide`: starts the configured command, usually `nvim`
+- `shell`: interactive project shell
+- `tasks`: spare shell for build, test, and flash commands
+- `logs`: spare shell for serial output or logs
+
+Disable tmux for a launch:
+
+```sh
+SHELLHOPPER_TMUX=0 shellhopper
+```
+
 ## Project Registry
 
 ShellHopper reads a tab-separated project registry from:
@@ -74,6 +87,8 @@ Kinds:
 - `container`: starts and attaches to an existing Docker container
 - `devcontainer`: starts a devcontainer from a local project path, then attaches
 
+When Docker is available, ShellHopper also discovers existing containers automatically. It tries to infer a readable project name from `devcontainer.local_folder`, then Docker Compose labels, then the container name. It also detects workspace mounts such as `/workspaces/app` and `/workspace`.
+
 ## Requirements
 
 The installer prepares the WSL side with:
@@ -85,8 +100,9 @@ The installer prepares the WSL side with:
 - `neovim`
 - `ripgrep`
 - `fd-find`
+- `tmux`
 
-On Windows, the installer also installs `JetBrainsMono Nerd Font` and configures the ShellHopper Windows Terminal profile to use it. This enables icons in terminal UIs such as Neovim file explorers.
+On Windows, the installer also installs `JetBrainsMono Nerd Font`, configures the ShellHopper Windows Terminal profile to use it, and sets a ShellHopper profile icon. The font enables icons in terminal UIs such as Neovim file explorers.
 
 Skip font installation:
 
