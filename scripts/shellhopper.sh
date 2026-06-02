@@ -79,7 +79,8 @@ docker_label() {
 }
 
 path_basename() {
-  local path="${1%/}"
+  local path="${1//\\//}"
+  path="${path%/}"
   printf '%s\n' "${path##*/}"
 }
 
@@ -151,7 +152,7 @@ tmux_command() {
   local name="$1"
   local ide_command="$2"
   local shell_command="$3"
-  local session quoted_session
+  local session quoted_session quoted_title
 
   if [[ "$tmux_enabled" != "1" ]]; then
     printf '%s\n' "$ide_command"
@@ -160,11 +161,14 @@ tmux_command() {
 
   session="$(session_name "$name")"
   quoted_session="$(printf '%q' "$session")"
+  quoted_title="$(printf '%q' "$name")"
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
   tmux has-session -t $quoted_session 2>/dev/null || {
     tmux new-session -d -s $quoted_session -n ide "$ide_command";
+    tmux set-option -t $quoted_session set-titles on >/dev/null;
+    tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
     tmux new-window -t $quoted_session -n shell "$shell_command";
     tmux new-window -t $quoted_session -n tasks "$shell_command";
     tmux new-window -t $quoted_session -n logs "$shell_command";

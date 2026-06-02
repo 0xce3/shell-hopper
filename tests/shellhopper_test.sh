@@ -25,6 +25,7 @@ grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Wi
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
 grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab title"
+grep -q 'set-titles-string' "$loader" || fail "tmux sets a short terminal title"
 grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
 if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install or configure fonts"
@@ -65,7 +66,7 @@ case "$1 $2" in
     template="$3"
     case "$template" in
       *'devcontainer.local_folder'*)
-        printf '/home/user/src/cool-app\n'
+        printf '\\\\wsl.localhost\\Ubuntu-22.04\\home\\user\\src\\cool-app\n'
         ;;
       *'com.docker.compose.project'*|*'com.docker.compose.service'*)
         printf '\n'
@@ -94,6 +95,9 @@ docker_output="$(PATH="$docker_bin:/usr/bin:/bin" "$loader" --config "$empty_con
 assert_contains "$docker_output" "cool-app"
 assert_contains "$docker_output" "random_container"
 assert_contains "$docker_output" "tmux"
+if [[ "$docker_output" == *"wsl.localhost"* ]]; then
+  fail "docker project names must be shortened from UNC paths"
+fi
 
 help_output="$("$loader" --help)"
 assert_contains "$help_output" "Project config format"
