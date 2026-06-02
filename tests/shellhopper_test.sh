@@ -21,7 +21,8 @@ assert_contains() {
 bash -n "$loader"
 
 grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL exit codes"
-grep -q 'bash -s' "$repo_root/install.ps1" || fail "install.ps1 passes WSL bootstrap through stdin"
+grep -q 'cat > "\$script_path"' "$repo_root/install.ps1" || fail "install.ps1 passes WSL bootstrap through stdin"
+grep -q '/dev/tty' "$repo_root/install.ps1" || fail "install.ps1 restores terminal input for sudo prompts"
 grep -q 'test -x ~/.local/bin/shellhopper' "$repo_root/install.ps1" || fail "Windows Terminal profile bootstraps missing shellhopper"
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
 grep -q 'JetBrainsMono Nerd Font' "$repo_root/install.ps1" || fail "install.ps1 configures JetBrainsMono Nerd Font"
