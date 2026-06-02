@@ -86,6 +86,14 @@ The installer prepares the WSL side with:
 - `ripgrep`
 - `fd-find`
 
+On Windows, the installer also installs `JetBrainsMono Nerd Font` and configures the ShellHopper Windows Terminal profile to use it. This enables icons in terminal UIs such as Neovim file explorers.
+
+Skip font installation:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1 -SkipFontInstall
+```
+
 Docker is intentionally not installed by ShellHopper because many Windows + WSL setups use Docker Desktop or another Docker package source. Container entries work when `docker` is available inside WSL.
 
 For devcontainer support, install the devcontainer CLI inside WSL:

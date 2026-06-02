@@ -3,6 +3,8 @@ param(
     [string]$ProfileName = "ShellHopper",
     [string]$RepoUrl = "https://github.com/0xce3/shell-hopper.git",
     [string]$NvimConfigRepo = "",
+    [string]$FontFace = "JetBrainsMono Nerd Font",
+    [switch]$SkipFontInstall,
     [switch]$SkipWindowsTerminalProfile
 )
 
@@ -31,6 +33,53 @@ function Get-WindowsTerminalSettingsPath {
     return $null
 }
 
+function Install-NerdFont {
+    param(
+        [string]$Name,
+        [string]$DownloadUrl = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip"
+    )
+
+    $fontsDir = Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts"
+    $markerFont = Join-Path $fontsDir "JetBrainsMonoNerdFont-Regular.ttf"
+
+    if (Test-Path $markerFont) {
+        Write-Host "$Name is already installed."
+        return
+    }
+
+    Write-Host "Installing $Name..."
+    New-Item -ItemType Directory -Force -Path $fontsDir | Out-Null
+
+    $tempDir = Join-Path $env:TEMP "shellhopper-font-$([guid]::NewGuid().ToString())"
+    $zipPath = Join-Path $tempDir "JetBrainsMono.zip"
+    New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+
+    try {
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $tempDir -Force
+
+        $fontFiles = Get-ChildItem $tempDir -Filter "*.ttf" -Recurse |
+            Where-Object { $_.Name -like "JetBrainsMonoNerdFont*.ttf" }
+
+        foreach ($fontFile in $fontFiles) {
+            $destination = Join-Path $fontsDir $fontFile.Name
+            Copy-Item $fontFile.FullName $destination -Force
+
+            $registryName = "$($fontFile.BaseName) (TrueType)"
+            New-ItemProperty `
+                -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts" `
+                -Name $registryName `
+                -Value $destination `
+                -PropertyType String `
+                -Force | Out-Null
+        }
+    } finally {
+        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "$Name installed."
+}
+
 function Install-WindowsTerminalProfile {
     $settingsPath = Get-WindowsTerminalSettingsPath
     if (-not $settingsPath) {
@@ -52,12 +101,22 @@ function Install-WindowsTerminalProfile {
 
     if ($existing) {
         $existing.commandline = $commandLine
+        if (-not $existing.font) {
+            $existing | Add-Member -MemberType NoteProperty -Name font -Value ([pscustomobject]@{})
+        }
+        if (-not $existing.font.PSObject.Properties["face"]) {
+            $existing.font | Add-Member -MemberType NoteProperty -Name face -Value $FontFace
+        }
+        $existing.font.face = $FontFace
     } else {
         $profile = [pscustomobject]@{
             guid = "{$([guid]::NewGuid().ToString())}"
             name = $ProfileName
             commandline = $commandLine
             startingDirectory = "%USERPROFILE%"
+            font = [pscustomobject]@{
+                face = $FontFace
+            }
         }
         $settings.profiles.list += $profile
     }
@@ -70,6 +129,10 @@ function Install-WindowsTerminalProfile {
 }
 
 Write-Host "Preparing WSL distribution: $WslDistribution"
+
+if (-not $SkipFontInstall) {
+    Install-NerdFont -Name $FontFace
+}
 
 $bootstrap = @"
 set -euo pipefail
