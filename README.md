@@ -9,7 +9,7 @@ ShellHopper is a lightweight Windows + WSL launcher for hopping into Docker cont
 From PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/shellhopper.ps1 | iex
 ```
 
 For custom installer parameters, download the installer first:
