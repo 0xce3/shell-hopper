@@ -45,6 +45,12 @@ List known environments:
 shellhopper --list
 ```
 
+Open one environment directly:
+
+```sh
+shellhopper app
+```
+
 Use a custom registry:
 
 ```sh

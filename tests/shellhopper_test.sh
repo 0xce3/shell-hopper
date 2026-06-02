@@ -24,6 +24,8 @@ grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail 
 grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
+grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab title"
+grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
 if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install or configure fonts"
 fi
@@ -46,6 +48,10 @@ assert_contains "$output" "local-tools"
 assert_contains "$output" "container-tools"
 assert_contains "$output" "docker unavailable"
 assert_contains "$output" "tmux"
+
+direct_output="$(SHELLHOPPER_TMUX=0 "$loader" --config "$config" --dry-run local-tools)"
+assert_contains "$direct_output" "local-tools"
+assert_contains "$direct_output" "nvim"
 
 docker_bin="$tmp_dir/bin"
 mkdir -p "$docker_bin"

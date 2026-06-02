@@ -6,10 +6,11 @@ default_command="${SHELLHOPPER_COMMAND:-nvim}"
 tmux_enabled="${SHELLHOPPER_TMUX:-1}"
 dry_run=0
 list_only=0
+entry_filter="${SHELLHOPPER_ENTRY:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: shellhopper [--config PATH] [--dry-run] [--list]
+Usage: shellhopper [--config PATH] [--dry-run] [--list] [NAME]
 
 Select a development environment and open a shell or Neovim inside it.
 
@@ -29,6 +30,11 @@ USAGE
 
 log() {
   printf '%s\n' "$*"
+}
+
+set_terminal_title() {
+  local title="$1"
+  printf '\033]0;%s\007' "$title"
 }
 
 run() {
@@ -237,10 +243,30 @@ display_entries() {
   }'
 }
 
+find_entry() {
+  local filter="$1"
+  entries | awk -F '\t' -v filter="$filter" '$2 == filter || $4 == filter { print; exit }'
+}
+
 choose_entry() {
   local selected
 
-  if [[ "$list_only" -eq 1 || "$dry_run" -eq 1 ]]; then
+  if [[ "$list_only" -eq 1 ]]; then
+    display_entries
+    return 0
+  fi
+
+  if [[ -n "$entry_filter" ]]; then
+    selected="$(find_entry "$entry_filter")"
+    if [[ -z "$selected" ]]; then
+      log "No environment found for: $entry_filter"
+      exit 1
+    fi
+    launch_entry "$selected"
+    return 0
+  fi
+
+  if [[ "$dry_run" -eq 1 ]]; then
     display_entries
     return 0
   fi
@@ -274,6 +300,7 @@ launch_entry() {
   local source name kind target workspace command status
   local inner_command shell_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
+  set_terminal_title "$name"
 
   case "$kind" in
     container)
@@ -336,8 +363,12 @@ main() {
         exit 0
         ;;
       *)
-        usage >&2
-        exit 2
+        if [[ -z "$entry_filter" ]]; then
+          entry_filter="$1"
+        else
+          usage >&2
+          exit 2
+        fi
         ;;
     esac
     shift
