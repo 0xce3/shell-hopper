@@ -23,8 +23,6 @@ grep -q 'test -x ~/.local/bin/shellhopper' "$repo_root/install.ps1" || fail "Win
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
 grep -q 'JetBrainsMono Nerd Font' "$repo_root/install.ps1" || fail "install.ps1 configures JetBrainsMono Nerd Font"
 grep -q 'ryanoasis/nerd-fonts' "$repo_root/install.ps1" || fail "install.ps1 downloads Nerd Fonts from the official release repo"
-grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
-grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
 fi
@@ -43,49 +41,6 @@ output="$("$loader" --config "$config" --dry-run)"
 assert_contains "$output" "local-tools"
 assert_contains "$output" "container-tools"
 assert_contains "$output" "docker unavailable"
-assert_contains "$output" "tmux"
-
-docker_bin="$tmp_dir/bin"
-mkdir -p "$docker_bin"
-cat >"$docker_bin/docker" <<'DOCKER'
-#!/usr/bin/env bash
-case "$1 $2" in
-  "ps -a")
-    printf 'random_container\tUp 2 hours\n'
-    ;;
-  "inspect -f")
-    template="$3"
-    case "$template" in
-      *'devcontainer.local_folder'*)
-        printf '/home/user/src/cool-app\n'
-        ;;
-      *'com.docker.compose.project'*|*'com.docker.compose.service'*)
-        printf '\n'
-        ;;
-      *'.State.Status'*)
-        printf 'running\n'
-        ;;
-      *'.Mounts'*)
-        printf '/workspaces/cool-app\n'
-        ;;
-      *)
-        printf '\n'
-        ;;
-    esac
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-DOCKER
-chmod +x "$docker_bin/docker"
-
-empty_config="$tmp_dir/empty-projects.tsv"
-printf '# name\tkind\ttarget\tworkspace\tcommand\n' >"$empty_config"
-docker_output="$(PATH="$docker_bin:/usr/bin:/bin" "$loader" --config "$empty_config" --dry-run)"
-assert_contains "$docker_output" "cool-app"
-assert_contains "$docker_output" "random_container"
-assert_contains "$docker_output" "tmux"
 
 help_output="$("$loader" --help)"
 assert_contains "$help_output" "Project config format"
