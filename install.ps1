@@ -43,18 +43,7 @@ function Invoke-Wsl {
     )
 
     Install-Info "$Description in $WslDistribution"
-    $runner = @'
-set -euo pipefail
-script_path="$(mktemp)"
-cat > "$script_path"
-chmod +x "$script_path"
-set +e
-bash "$script_path" </dev/tty
-status=$?
-rm -f "$script_path"
-exit "$status"
-'@
-    $Command | wsl.exe -d $WslDistribution -- bash -c $runner
+    $Command | wsl.exe -d $WslDistribution -- bash -s
     if ($LASTEXITCODE -ne 0) {
         throw "WSL command failed with exit code $LASTEXITCODE"
     }
