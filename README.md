@@ -9,11 +9,13 @@ ShellHopper is a lightweight Windows + WSL launcher for hopping into Docker cont
 From PowerShell:
 
 ```powershell
-$ProgressPreference = "SilentlyContinue"
-$installer = Invoke-RestMethod "https://api.github.com/repos/0xce3/shell-hopper/contents/install.ps1?ref=main"
-$path = Join-Path $env:TEMP "shellhopper-install.ps1"
-[IO.File]::WriteAllBytes($path, [Convert]::FromBase64String(($installer.content -replace "\s", "")))
-powershell -ExecutionPolicy Bypass -File $path
+irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/bootstrap.ps1 | iex
+```
+
+For custom installer parameters, download the installer first:
+
+```powershell
+$ProgressPreference = "SilentlyContinue"; $installer = Invoke-RestMethod "https://api.github.com/repos/0xce3/shell-hopper/contents/install.ps1?ref=main"; $path = Join-Path $env:TEMP "shellhopper-install.ps1"; [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String(($installer.content -replace "\s", "")))
 ```
 
 Skip font installation when your terminal font is already configured:
