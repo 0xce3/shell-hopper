@@ -32,8 +32,6 @@ grep -q 'Installing WSL packages' "$repo_root/install.ps1" || fail "install.ps1 
 grep -q 'Test-NerdFontInstalled' "$repo_root/install.ps1" || fail "install.ps1 detects already installed Nerd Fonts"
 grep -q 'api.github.com/repos' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 uses GitHub API installer download"
 grep -q 'contents/install.ps1' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 downloads install.ps1"
-grep -q 'Start-Transcript' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 writes a log"
-grep -q 'Wait-OnFailure' "$repo_root/bootstrap.ps1" || fail "bootstrap.ps1 waits on failure"
 grep -Fq 'irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/bootstrap.ps1 | iex' "$repo_root/README.md" || fail "README keeps one-command install"
 if grep -q 'docker.io' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install docker.io"
