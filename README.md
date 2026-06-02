@@ -9,26 +9,29 @@ ShellHopper is a lightweight Windows + WSL launcher for hopping into Docker cont
 From PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/0xce3/shell-hopper/main/install.ps1 | iex
+$ProgressPreference = "SilentlyContinue"
+$installer = Invoke-RestMethod "https://api.github.com/repos/0xce3/shell-hopper/contents/install.ps1?ref=main"
+$path = Join-Path $env:TEMP "shellhopper-install.ps1"
+[IO.File]::WriteAllBytes($path, [Convert]::FromBase64String(($installer.content -replace "\s", "")))
+powershell -ExecutionPolicy Bypass -File $path
 ```
 
-Debuggable install:
+Skip font installation when your terminal font is already configured:
 
 ```powershell
-iwr https://raw.githubusercontent.com/0xce3/shell-hopper/main/install.ps1 -OutFile $env:TEMP\shellhopper-install.ps1
-powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1
+powershell -ExecutionPolicy Bypass -File $path -SkipFontInstall
 ```
 
 Use a specific WSL distribution:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1 -WslDistribution Ubuntu-22.04
+powershell -ExecutionPolicy Bypass -File $path -WslDistribution Ubuntu-22.04
 ```
 
 Optionally install a Neovim config as part of setup:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1 -NvimConfigRepo https://github.com/example/nvim-config.git
+powershell -ExecutionPolicy Bypass -File $path -NvimConfigRepo https://github.com/example/nvim-config.git
 ```
 
 ## Usage
@@ -107,7 +110,7 @@ On Windows, the installer also installs `JetBrainsMono Nerd Font`, configures th
 Skip font installation:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File $env:TEMP\shellhopper-install.ps1 -SkipFontInstall
+powershell -ExecutionPolicy Bypass -File $path -SkipFontInstall
 ```
 
 Docker is intentionally not installed by ShellHopper because many Windows + WSL setups use Docker Desktop or another Docker package source. Container entries work when `docker` is available inside WSL.
