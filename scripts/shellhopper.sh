@@ -123,7 +123,7 @@ docker_workspace() {
 
 session_name() {
   local name="$1"
-  name="${name//[^[:alnum:]_.-]/_}"
+  name="${name//[^[:alnum:]_-]/_}"
   printf 'sh-%s\n' "${name:-dev}"
 }
 
