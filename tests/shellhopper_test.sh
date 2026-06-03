@@ -28,6 +28,9 @@ grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab ti
 grep -q 'set-titles-string' "$loader" || fail "tmux sets a short terminal title"
 grep -q 'default-terminal tmux-256color' "$loader" || fail "tmux must use tmux-256color"
 grep -q 'terminal-overrides.*RGB' "$loader" || fail "tmux must enable RGB truecolor"
+grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gruvbox colors"
+grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
+grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
 grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
 grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
 if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then

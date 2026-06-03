@@ -166,8 +166,11 @@ tmux_command() {
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
   tmux set-option -g default-terminal tmux-256color >/dev/null;
-  tmux set-option -ga terminal-overrides ',*:RGB' >/dev/null;
-  tmux set-option -ga terminal-features ',*:RGB' >/dev/null 2>&1 || true;
+  tmux set-option -g terminal-overrides ',*:RGB' >/dev/null;
+  tmux set-option -g terminal-features '*:RGB' >/dev/null 2>&1 || true;
+  tmux set-option -g status-style 'bg=#32302f,fg=#ebdbb2' >/dev/null;
+  tmux set-option -g window-status-current-style 'bg=#504945,fg=#fabd2f,bold' >/dev/null;
+  tmux set-option -g window-status-style 'bg=#32302f,fg=#a89984' >/dev/null;
   tmux has-session -t $quoted_session 2>/dev/null || {
     tmux new-session -d -s $quoted_session -n ide "$ide_command";
     tmux set-option -t $quoted_session set-titles on >/dev/null;
@@ -318,9 +321,9 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        run bash -lc "$(tmux_command "$name" "docker exec -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
+        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
       else
-        run docker exec -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
+        run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
       ;;
     devcontainer)
