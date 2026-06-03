@@ -32,6 +32,8 @@ grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gru
 grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
 grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
 grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
+grep -q "ShellHopper > " "$loader" || fail "fzf menu must use a clear ShellHopper prompt"
+grep -q -- "--preview-window" "$loader" || fail "fzf menu must show entry details"
 grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
 if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install or configure fonts"

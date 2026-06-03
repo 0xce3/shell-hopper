@@ -253,6 +253,34 @@ display_entries() {
   }'
 }
 
+fzf_entries() {
+  entries | awk -F '\t' -v tmux="$tmux_enabled" '
+    function color(code, text) { return sprintf("\033[%sm%s\033[0m", code, text) }
+    {
+      command = $6
+      if (tmux == "1") {
+        command = "tmux:" command
+      }
+
+      status_icon = color("33", "◐")
+      status_text = $7
+      if ($7 ~ /^Up/) {
+        status_icon = color("32", "●")
+      } else if ($7 ~ /^Exited/) {
+        status_icon = color("90", "○")
+      }
+
+      source = color("36", $1)
+      name = color("1;37", $2)
+      kind = color("35", $3)
+      target = color("90", $4)
+      command_col = color("33", command)
+
+      display = sprintf("%s  %-30s %-11s %-24s %s", status_icon, name, kind, command_col, status_text)
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", display, $1, $2, $3, $4, $5, $6, $7, command
+    }'
+}
+
 find_entry() {
   local filter="$1"
   entries | awk -F '\t' -v filter="$filter" '$2 == filter || $4 == filter { print; exit }'
@@ -282,7 +310,23 @@ choose_entry() {
   fi
 
   if command -v fzf >/dev/null 2>&1; then
-    selected="$(entries | fzf --delimiter=$'\t' --with-nth=1,2,3,6,7 --header='Select development environment')"
+    selected="$(
+      fzf_entries |
+        fzf --ansi \
+          --delimiter=$'\t' \
+          --with-nth=1 \
+          --nth=1 \
+          --layout=reverse \
+          --height=80% \
+          --border=rounded \
+          --prompt='ShellHopper > ' \
+          --header=$'Select development environment\n↑/↓ move  Enter open  type to filter  Esc cancel' \
+          --preview='printf "%s\n" {} | awk -F "\t" "{ printf \"Name:      %s\nSource:    %s\nKind:      %s\nTarget:    %s\nWorkspace: %s\nCommand:   %s\nStatus:    %s\n\", \$3, \$2, \$4, \$5, \$6, \$9, \$8 }"' \
+          --preview-window='right,50%,border-left'
+    )"
+    if [[ -n "${selected:-}" ]]; then
+      selected="$(printf '%s\n' "$selected" | cut -f2-7)"
+    fi
   else
     mapfile -t rows < <(entries)
     if [[ "${#rows[@]}" -eq 0 ]]; then
