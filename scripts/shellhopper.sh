@@ -187,7 +187,7 @@ set -g status-style "bg=#32302f,fg=#a89984"
 
 # Left: project name (strip sh- prefix)
 set -g status-left-length 40
-set -g status-left "#[bg=#504945,fg=#fabd2f,bold]  #{s/^sh-//:#S}  #[default] "
+set -g status-left "#[bg=#504945,fg=#fabd2f,bold]  #{E:SHELLHOPPER_NAME}  #[default] "
 
 # Right: empty
 set -g status-right ""
@@ -205,6 +205,7 @@ SHELLHOPPER_TMUX
   tmux set-option -g terminal-features '*:RGB' >/dev/null 2>&1 || true;
   tmux has-session -t $quoted_session 2>/dev/null || {
     tmux new-session -d -s $quoted_session -n ide $quoted_ide_command;
+    tmux set-environment -t $quoted_session SHELLHOPPER_NAME $quoted_title >/dev/null;
     tmux set-option -t $quoted_session set-titles on >/dev/null;
     tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
     tmux new-window -t $quoted_session -n shell $quoted_shell_command;
