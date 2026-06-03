@@ -23,6 +23,7 @@ grep -q 'shellhopper.tmp' "$repo_root/install.ps1" || fail "Windows Terminal pro
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
 grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
+# shellcheck disable=SC2016
 grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
 grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab title"
 grep -q 'set-titles-string' "$loader" || fail "tmux sets a short terminal title"
@@ -35,9 +36,17 @@ grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gru
 grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
 grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
 grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
+grep -q 'project_tasks_command' "$loader" || fail "shellhopper must create a real tasks window command"
+grep -q 'Space t r' "$loader" || fail "tasks window must point users to the Neovim task picker"
+grep -q -- '--sessions' "$loader" || fail "shellhopper must list tmux sessions"
+grep -q -- '--kill NAME' "$loader" || fail "shellhopper must document session cleanup"
+grep -q 'kill-session' "$loader" || fail "shellhopper must support killing stale tmux sessions"
 grep -q "ShellHopper > " "$loader" || fail "fzf menu must use a clear ShellHopper prompt"
 grep -q -- "--preview-window" "$loader" || fail "fzf menu must show entry details"
 grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
+if grep -q -- '-n logs' "$loader"; then
+  fail "shellhopper must not create an empty logs window"
+fi
 if grep -qi 'Nerd Font\\|JetBrainsMono\\|ryanoasis\\|SkipFont\\|FontFace' "$repo_root/install.ps1"; then
   fail "install.ps1 must not install or configure fonts"
 fi
@@ -61,9 +70,43 @@ assert_contains "$output" "container-tools"
 assert_contains "$output" "docker unavailable"
 assert_contains "$output" "tmux"
 
+tmux_launch_output="$("$loader" --config "$config" --dry-run local-tools)"
+assert_contains "$tmux_launch_output" "-n tasks"
+if [[ "$tmux_launch_output" == *"-n logs"* ]]; then
+  fail "direct tmux launch must not create a logs window"
+fi
+
 direct_output="$(SHELLHOPPER_TMUX=0 "$loader" --config "$config" --dry-run local-tools)"
 assert_contains "$direct_output" "local-tools"
 assert_contains "$direct_output" "nvim"
+
+kill_output="$("$loader" --dry-run --kill local-tools)"
+assert_contains "$kill_output" "tmux"
+assert_contains "$kill_output" "kill-session"
+assert_contains "$kill_output" "sh-local-tools"
+
+mkdir -p "$tmp_dir/bin"
+cat >"$tmp_dir/bin/tmux" <<'TMUX'
+#!/usr/bin/env bash
+printf 'TMUX argc=%s:' "$#" >> "$TMUX_CAPTURE"
+printf ' [%s]' "$@" >> "$TMUX_CAPTURE"
+printf '\n' >> "$TMUX_CAPTURE"
+case "$1" in
+  has-session) exit 1 ;;
+  attach) exit 0 ;;
+esac
+exit 0
+TMUX
+chmod +x "$tmp_dir/bin/tmux"
+
+tmux_capture="$tmp_dir/tmux.log"
+TMUX_CAPTURE="$tmux_capture" PATH="$tmp_dir/bin:/usr/bin:/bin" "$loader" --config "$config" local-tools >/dev/null
+tmux_output="$(cat "$tmux_capture")"
+assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [tasks]"
+assert_contains "$tmux_output" "Space t r"
+if [[ "$tmux_output" == *"[-n] [logs]"* ]]; then
+  fail "tmux launch must not create a logs window"
+fi
 
 docker_bin="$tmp_dir/bin"
 mkdir -p "$docker_bin"

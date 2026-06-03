@@ -61,13 +61,26 @@ By default, ShellHopper opens the selected environment through `tmux`. New sessi
 
 - `ide`: starts the configured command, usually `nvim`
 - `shell`: interactive project shell
-- `tasks`: spare shell for build, test, and flash commands
-- `logs`: spare shell for serial output or logs
+- `tasks`: project task shell that points to the Neovim task picker (`Space t r`) and lists `.vscode/tasks.json` labels when `jq` is available
+
+The `tasks` window is intentionally a supporting shell, not a second task UI. Use it for long-running commands such as `native_sim`, display simulators, GPIO simulators, builds, or flash steps. Use Neovim's integrated terminal with `F12` for short-lived editor-local terminal work.
 
 Disable tmux for a launch:
 
 ```sh
 SHELLHOPPER_TMUX=0 shellhopper
+```
+
+List ShellHopper tmux sessions:
+
+```sh
+shellhopper --sessions
+```
+
+Kill a stale ShellHopper session and its `nvim`/container attach processes:
+
+```sh
+shellhopper --kill app
 ```
 
 ## Project Registry

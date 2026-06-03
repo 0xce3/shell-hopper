@@ -6,11 +6,13 @@ default_command="${SHELLHOPPER_COMMAND:-nvim}"
 tmux_enabled="${SHELLHOPPER_TMUX:-1}"
 dry_run=0
 list_only=0
+sessions_only=0
+kill_target=""
 entry_filter="${SHELLHOPPER_ENTRY:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: shellhopper [--config PATH] [--dry-run] [--list] [NAME]
+Usage: shellhopper [--config PATH] [--dry-run] [--list] [--sessions] [--kill NAME] [NAME]
 
 Select a development environment and open a shell or Neovim inside it.
 
@@ -25,6 +27,10 @@ Kinds:
 Examples:
   app<TAB>container<TAB>app-dev<TAB>/workspaces/app<TAB>nvim
   tools<TAB>wsl<TAB>-<TAB>/home/user/src/tools<TAB>nvim
+
+Session management:
+  --sessions   List ShellHopper tmux sessions.
+  --kill NAME  Kill the ShellHopper tmux session for NAME.
 USAGE
 }
 
@@ -148,11 +154,45 @@ workspace_command() {
   fi
 }
 
+project_tasks_command() {
+  local workspace="$1"
+  local quoted_workspace
+
+  quoted_workspace="$(printf '%q' "$workspace")"
+
+  {
+    if [[ "$workspace" != "-" ]]; then
+      printf 'cd %s && ' "$quoted_workspace"
+    fi
+
+    cat <<'TASKS'
+bash -lc 'clear
+printf "ShellHopper tasks\n"
+printf "=================\n\n"
+printf "Primary task UI: open Neovim and press Space t r.\n"
+printf "This pane is a spare project shell for long-running commands such as native_sim, display simulators, GPIO simulators, builds, and flash steps.\n\n"
+if [ -f .vscode/tasks.json ]; then
+  printf "VS Code task labels from .vscode/tasks.json:\n"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r ".tasks[]?.label // empty" .vscode/tasks.json | sed "s/^/  - /"
+  else
+    printf "  jq is not installed; use Neovim Space t r to browse tasks.\n"
+  fi
+else
+  printf "No .vscode/tasks.json found in this workspace.\n"
+fi
+printf "\n"
+exec bash -l'
+TASKS
+  }
+}
+
 tmux_command() {
   local name="$1"
   local ide_command="$2"
   local shell_command="$3"
-  local session quoted_session quoted_title
+  local tasks_command="$4"
+  local session quoted_session quoted_title quoted_ide_command quoted_shell_command quoted_tasks_command
 
   if [[ "$tmux_enabled" != "1" ]]; then
     printf '%s\n' "$ide_command"
@@ -162,6 +202,9 @@ tmux_command() {
   session="$(session_name "$name")"
   quoted_session="$(printf '%q' "$session")"
   quoted_title="$(printf '%q' "$name")"
+  quoted_ide_command="$(printf '%q' "$ide_command")"
+  quoted_shell_command="$(printf '%q' "$shell_command")"
+  quoted_tasks_command="$(printf '%q' "$tasks_command")"
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
@@ -183,19 +226,41 @@ SHELLHOPPER_TMUX
   tmux set-option -g window-status-current-style 'bg=#504945,fg=#fabd2f,bold' >/dev/null;
   tmux set-option -g window-status-style 'bg=#32302f,fg=#a89984' >/dev/null;
   tmux has-session -t $quoted_session 2>/dev/null || {
-    tmux new-session -d -s $quoted_session -n ide "$ide_command";
+    tmux new-session -d -s $quoted_session -n ide $quoted_ide_command;
     tmux set-option -t $quoted_session set-titles on >/dev/null;
     tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
-    tmux new-window -t $quoted_session -n shell "$shell_command";
-    tmux new-window -t $quoted_session -n tasks "$shell_command";
-    tmux new-window -t $quoted_session -n logs "$shell_command";
+    tmux new-window -t $quoted_session -n shell $quoted_shell_command;
+    tmux new-window -t $quoted_session -n tasks $quoted_tasks_command;
     tmux select-window -t $quoted_session:ide;
   }
   tmux -2 attach -t $quoted_session;
 else
-  $ide_command;
+  eval $quoted_ide_command;
 fi
 COMMAND
+}
+
+list_sessions() {
+  if ! command -v tmux >/dev/null 2>&1; then
+    log "tmux unavailable"
+    return 0
+  fi
+
+  tmux list-sessions -F '#{session_name} windows=#{session_windows} attached=#{session_attached}' 2>/dev/null |
+    awk '$1 ~ /^sh-/ { print }'
+}
+
+kill_session() {
+  local target="$1"
+  local session
+
+  session="$(session_name "$target")"
+  if [[ "$dry_run" -eq 1 ]]; then
+    printf '  $ tmux kill-session -t %q\n' "$session"
+    return 0
+  fi
+
+  tmux kill-session -t "$session"
 }
 
 read_config_entries() {
@@ -321,6 +386,7 @@ choose_entry() {
   fi
 
   if command -v fzf >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
     selected="$(
       fzf_entries |
         fzf --ansi \
@@ -363,7 +429,7 @@ choose_entry() {
 launch_entry() {
   local row="$1"
   local source name kind target workspace command status
-  local inner_command shell_inner_command
+  local inner_command shell_inner_command tasks_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
   set_terminal_title "$name"
 
@@ -376,7 +442,8 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
+        tasks_inner_command="$(project_tasks_command "$workspace")"
+        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$tasks_inner_command")")"
       else
         run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
@@ -391,14 +458,15 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
+        tasks_inner_command="$(project_tasks_command "$workspace")"
+        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$tasks_inner_command")")"
       else
         run devcontainer exec --workspace-folder "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
       ;;
     wsl)
       if [[ "$tmux_enabled" == "1" ]]; then
-        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")")"
+        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")" "$(project_tasks_command "$workspace")")"
       else
         run bash -lc "$(workspace_command "$workspace" "$command")"
       fi
@@ -423,6 +491,17 @@ main() {
       --list)
         list_only=1
         ;;
+      --sessions)
+        sessions_only=1
+        ;;
+      --kill)
+        if [[ $# -lt 2 ]]; then
+          usage >&2
+          exit 2
+        fi
+        kill_target="$2"
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -438,6 +517,16 @@ main() {
     esac
     shift
   done
+
+  if [[ "$sessions_only" -eq 1 ]]; then
+    list_sessions
+    return 0
+  fi
+
+  if [[ -n "$kill_target" ]]; then
+    kill_session "$kill_target"
+    return 0
+  fi
 
   choose_entry
 }
