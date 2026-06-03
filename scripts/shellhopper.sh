@@ -193,9 +193,9 @@ set -g status-left "#[bg=#504945,fg=#fabd2f,bold]  #{E:SHELLHOPPER_NAME}  #[defa
 set -g status-right ""
 set -g status-right-length 0
 
-# Window tabs — name only, no index
-set -g window-status-format         "#[bg=#32302f,fg=#a89984]  #W  "
-set -g window-status-current-format "#[bg=#504945,fg=#fabd2f,bold]  #W  "
+# Window tabs — index: name
+set -g window-status-format         "#[bg=#32302f,fg=#a89984]  #I: #W  "
+set -g window-status-current-format "#[bg=#504945,fg=#fabd2f,bold]  #I: #W  "
 set -g window-status-separator      ""
 SHELLHOPPER_TMUX
   cp ~/.config/tmux/tmux.conf ~/.config/shellhopper/tmux.conf;
@@ -209,7 +209,6 @@ SHELLHOPPER_TMUX
     tmux set-option -t $quoted_session set-titles on >/dev/null;
     tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
     tmux new-window -t $quoted_session -n shell $quoted_shell_command;
-    tmux new-window -t $quoted_session -n logs $quoted_shell_command;
     tmux select-window -t $quoted_session:ide;
   }
   tmux -2 attach -t $quoted_session;
