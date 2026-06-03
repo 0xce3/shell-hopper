@@ -154,45 +154,11 @@ workspace_command() {
   fi
 }
 
-project_tasks_command() {
-  local workspace="$1"
-  local quoted_workspace
-
-  quoted_workspace="$(printf '%q' "$workspace")"
-
-  {
-    if [[ "$workspace" != "-" ]]; then
-      printf 'cd %s && ' "$quoted_workspace"
-    fi
-
-    cat <<'TASKS'
-bash -lc 'clear
-printf "ShellHopper tasks\n"
-printf "=================\n\n"
-printf "Primary task UI: open Neovim and press Space t r.\n"
-printf "This pane is a spare project shell for long-running commands such as native_sim, display simulators, GPIO simulators, builds, and flash steps.\n\n"
-if [ -f .vscode/tasks.json ]; then
-  printf "VS Code task labels from .vscode/tasks.json:\n"
-  if command -v jq >/dev/null 2>&1; then
-    jq -r ".tasks[]?.label // empty" .vscode/tasks.json | sed "s/^/  - /"
-  else
-    printf "  jq is not installed; use Neovim Space t r to browse tasks.\n"
-  fi
-else
-  printf "No .vscode/tasks.json found in this workspace.\n"
-fi
-printf "\n"
-exec bash -l'
-TASKS
-  }
-}
-
 tmux_command() {
   local name="$1"
   local ide_command="$2"
   local shell_command="$3"
-  local tasks_command="$4"
-  local session quoted_session quoted_title quoted_ide_command quoted_shell_command quoted_tasks_command
+  local session quoted_session quoted_title quoted_ide_command quoted_shell_command
 
   if [[ "$tmux_enabled" != "1" ]]; then
     printf '%s\n' "$ide_command"
@@ -204,7 +170,6 @@ tmux_command() {
   quoted_title="$(printf '%q' "$name")"
   quoted_ide_command="$(printf '%q' "$ide_command")"
   quoted_shell_command="$(printf '%q' "$shell_command")"
-  quoted_tasks_command="$(printf '%q' "$tasks_command")"
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
@@ -213,24 +178,37 @@ if command -v tmux >/dev/null 2>&1; then
 set -g default-terminal "tmux-256color"
 set -g terminal-overrides ",*:RGB"
 set -g terminal-features "*:RGB"
-set -g status-style "bg=#32302f,fg=#ebdbb2"
-set -g window-status-current-style "bg=#504945,fg=#fabd2f,bold"
-set -g window-status-style "bg=#32302f,fg=#a89984"
+
+# Status bar
+set -g status on
+set -g status-position bottom
+set -g status-interval 0
+set -g status-style "bg=#32302f,fg=#a89984"
+
+# Left: project name (strip sh- prefix)
+set -g status-left-length 40
+set -g status-left "#[bg=#504945,fg=#fabd2f,bold]  #{s/^sh-//:#S}  #[default] "
+
+# Right: empty
+set -g status-right ""
+set -g status-right-length 0
+
+# Window tabs — name only, no index
+set -g window-status-format         "#[bg=#32302f,fg=#a89984]  #W  "
+set -g window-status-current-format "#[bg=#504945,fg=#fabd2f,bold]  #W  "
+set -g window-status-separator      ""
 SHELLHOPPER_TMUX
   cp ~/.config/tmux/tmux.conf ~/.config/shellhopper/tmux.conf;
   tmux source-file ~/.config/tmux/tmux.conf >/dev/null 2>&1 || true;
   tmux set-option -g default-terminal tmux-256color >/dev/null;
   tmux set-option -g terminal-overrides ',*:RGB' >/dev/null;
   tmux set-option -g terminal-features '*:RGB' >/dev/null 2>&1 || true;
-  tmux set-option -g status-style 'bg=#32302f,fg=#ebdbb2' >/dev/null;
-  tmux set-option -g window-status-current-style 'bg=#504945,fg=#fabd2f,bold' >/dev/null;
-  tmux set-option -g window-status-style 'bg=#32302f,fg=#a89984' >/dev/null;
   tmux has-session -t $quoted_session 2>/dev/null || {
     tmux new-session -d -s $quoted_session -n ide $quoted_ide_command;
     tmux set-option -t $quoted_session set-titles on >/dev/null;
     tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
     tmux new-window -t $quoted_session -n shell $quoted_shell_command;
-    tmux new-window -t $quoted_session -n tasks $quoted_tasks_command;
+    tmux new-window -t $quoted_session -n logs $quoted_shell_command;
     tmux select-window -t $quoted_session:ide;
   }
   tmux -2 attach -t $quoted_session;
@@ -442,8 +420,7 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        tasks_inner_command="$(project_tasks_command "$workspace")"
-        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$tasks_inner_command")")"
+        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
       else
         run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
@@ -458,15 +435,14 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        tasks_inner_command="$(project_tasks_command "$workspace")"
-        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$tasks_inner_command")")"
+        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
       else
         run devcontainer exec --workspace-folder "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
       ;;
     wsl)
       if [[ "$tmux_enabled" == "1" ]]; then
-        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")" "$(project_tasks_command "$workspace")")"
+        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")")"
       else
         run bash -lc "$(workspace_command "$workspace" "$command")"
       fi
