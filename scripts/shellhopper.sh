@@ -165,6 +165,9 @@ tmux_command() {
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
+  tmux set-option -g default-terminal tmux-256color >/dev/null;
+  tmux set-option -ga terminal-overrides ',*:RGB' >/dev/null;
+  tmux set-option -ga terminal-features ',*:RGB' >/dev/null 2>&1 || true;
   tmux has-session -t $quoted_session 2>/dev/null || {
     tmux new-session -d -s $quoted_session -n ide "$ide_command";
     tmux set-option -t $quoted_session set-titles on >/dev/null;
@@ -174,7 +177,7 @@ if command -v tmux >/dev/null 2>&1; then
     tmux new-window -t $quoted_session -n logs "$shell_command";
     tmux select-window -t $quoted_session:ide;
   }
-  tmux attach -t $quoted_session;
+  tmux -2 attach -t $quoted_session;
 else
   $ide_command;
 fi
