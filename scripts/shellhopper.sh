@@ -3,7 +3,7 @@ set -euo pipefail
 
 config_file="${SHELLHOPPER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/shellhopper/projects.tsv}"
 default_command="${SHELLHOPPER_COMMAND:-nvim}"
-tmux_enabled="${SHELLHOPPER_TMUX:-1}"
+tmux_enabled="${SHELLHOPPER_TMUX:-0}"
 dry_run=0
 list_only=0
 sessions_only=0
@@ -407,7 +407,7 @@ choose_entry() {
 launch_entry() {
   local row="$1"
   local source name kind target workspace command status
-  local inner_command shell_inner_command tasks_inner_command
+  local inner_command shell_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
   set_terminal_title "$name"
 
@@ -437,7 +437,23 @@ launch_entry() {
         shell_inner_command="$(workspace_command "$workspace" "bash")"
         run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
       else
-        run devcontainer exec --workspace-folder "$target" bash -lc "$(workspace_command "$workspace" "$command")"
+        local sim_trigger bridge_pid
+        sim_trigger="${target}/.shellhopper-sim-trigger"
+        rm -f "$sim_trigger"
+        bridge_pid=""
+
+        if command -v shellhopper-sim-bridge >/dev/null 2>&1; then
+          shellhopper-sim-bridge "$sim_trigger" "$target" &
+          bridge_pid=$!
+        fi
+
+        devcontainer exec --workspace-folder "$target" bash -lc "$(workspace_command "$workspace" "$command")" || true
+
+        if [[ -n "$bridge_pid" ]]; then
+          kill "$bridge_pid" 2>/dev/null || true
+          wait "$bridge_pid" 2>/dev/null || true
+        fi
+        rm -f "$sim_trigger"
       fi
       ;;
     wsl)

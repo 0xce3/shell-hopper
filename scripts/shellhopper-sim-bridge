@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# shellhopper-sim-bridge
+# Runs in WSL alongside shellhopper (background process). Watches for a trigger
+# file written by nvim (inside the devcontainer) and opens a new Windows Terminal
+# tab that connects to the container and runs the simulation command.
+#
+# Args:
+#   $1  trigger file path  (e.g. /home/user/west_workspace/qmx63_firmware_main/.shellhopper-sim-trigger)
+#   $2  devcontainer workspace-folder path (e.g. /home/user/west_workspace/qmx63_firmware_main)
+
+set -uo pipefail
+
+TRIGGER_FILE="${1:?trigger file path required}"
+TARGET="${2:?devcontainer workspace path required}"
+SIM_SCRIPT="${TRIGGER_FILE%/*}/.shellhopper-sim-script.sh"
+
+cleanup() {
+    rm -f "$TRIGGER_FILE" "$SIM_SCRIPT"
+}
+trap cleanup EXIT INT TERM
+
+while true; do
+    if [[ -f "$TRIGGER_FILE" ]]; then
+        local_cmd=$(cat "$TRIGGER_FILE" 2>/dev/null || true)
+        rm -f "$TRIGGER_FILE"
+
+        if [[ -n "$local_cmd" ]]; then
+            # Write the command to a script on the shared volume so the container
+            # can execute it without any quoting issues over the exec boundary.
+            printf '#!/bin/bash\n%s\n' "$local_cmd" > "$SIM_SCRIPT"
+            chmod +x "$SIM_SCRIPT"
+
+            # Open a new Windows Terminal tab: WSL -> devcontainer exec -> sim script
+            wt.exe new-tab -- \
+                bash -lc "devcontainer exec --workspace-folder $(printf '%q' "$TARGET") bash -lc 'bash $(printf '%q' "$SIM_SCRIPT")'" &
+        fi
+    fi
+    sleep 0.3
+done
