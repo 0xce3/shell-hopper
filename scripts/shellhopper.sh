@@ -165,6 +165,16 @@ tmux_command() {
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
+  mkdir -p ~/.config/shellhopper;
+  cat > ~/.config/shellhopper/tmux.conf <<'SHELLHOPPER_TMUX'
+set -g default-terminal "tmux-256color"
+set -g terminal-overrides ",*:RGB"
+set -g terminal-features "*:RGB"
+set -g status-style "bg=#32302f,fg=#ebdbb2"
+set -g window-status-current-style "bg=#504945,fg=#fabd2f,bold"
+set -g window-status-style "bg=#32302f,fg=#a89984"
+SHELLHOPPER_TMUX
+  tmux source-file ~/.config/shellhopper/tmux.conf >/dev/null 2>&1 || true;
   tmux set-option -g default-terminal tmux-256color >/dev/null;
   tmux set-option -g terminal-overrides ',*:RGB' >/dev/null;
   tmux set-option -g terminal-features '*:RGB' >/dev/null 2>&1 || true;

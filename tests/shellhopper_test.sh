@@ -28,6 +28,8 @@ grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab ti
 grep -q 'set-titles-string' "$loader" || fail "tmux sets a short terminal title"
 grep -q 'default-terminal tmux-256color' "$loader" || fail "tmux must use tmux-256color"
 grep -q 'terminal-overrides.*RGB' "$loader" || fail "tmux must enable RGB truecolor"
+grep -q 'shellhopper/tmux.conf' "$loader" || fail "shellhopper must write a tmux config"
+grep -q 'tmux source-file ~/.config/shellhopper/tmux.conf' "$loader" || fail "shellhopper must source tmux config"
 grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gruvbox colors"
 grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
 grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
