@@ -47,7 +47,7 @@ function Install-WindowsTerminalProfile {
         $settings.profiles | Add-Member -MemberType NoteProperty -Name list -Value @()
     }
 
-    $bootstrapCommand = "test -x ~/.local/bin/shellhopper || { mkdir -p ~/.local/bin ~/.config/shellhopper; curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/scripts/shellhopper.sh -o ~/.local/bin/shellhopper; chmod +x ~/.local/bin/shellhopper; test -f ~/.config/shellhopper/projects.tsv || curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv; }; exec ~/.local/bin/shellhopper"
+    $bootstrapCommand = "mkdir -p ~/.local/bin ~/.config/shellhopper; curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/scripts/shellhopper.sh -o ~/.local/bin/shellhopper.tmp && mv ~/.local/bin/shellhopper.tmp ~/.local/bin/shellhopper && chmod +x ~/.local/bin/shellhopper; test -f ~/.config/shellhopper/projects.tsv || curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv; exec ~/.local/bin/shellhopper"
     $commandLine = "wsl.exe -d $WslDistribution -- bash -lc `"$bootstrapCommand`""
     $existing = $settings.profiles.list | Where-Object { $_.name -eq $ProfileName } | Select-Object -First 1
 
