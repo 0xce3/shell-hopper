@@ -22,8 +22,11 @@ grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL 
 grep -q 'shellhopper.tmp' "$repo_root/install.ps1" || fail "Windows Terminal profile must refresh shellhopper launcher"
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
 grep -q 'scrollbarState' "$repo_root/install.ps1" || fail "Windows Terminal profiles must hide scrollbars"
-grep -q 'Remove-Member -Name icon' "$repo_root/install.ps1" || fail "install.ps1 must remove ShellHopper profile icons"
+grep -q 'PSObject.Properties.Remove("icon")' "$repo_root/install.ps1" || fail "install.ps1 must remove ShellHopper profile icons"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
+if grep -q 'Remove-Member' "$repo_root/install.ps1"; then
+  fail "install.ps1 must not call unavailable Remove-Member cmdlet"
+fi
 # shellcheck disable=SC2016
 grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
 grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab title"

@@ -59,7 +59,6 @@ function Install-WindowsTerminalProfile {
         $existing.scrollbarState = "hidden"
         if ($existing.PSObject.Properties["icon"]) {
             $existing.PSObject.Properties.Remove("icon")
-            $existing | Remove-Member -Name icon -ErrorAction SilentlyContinue
         }
     } else {
         $profile = [pscustomobject]@{
