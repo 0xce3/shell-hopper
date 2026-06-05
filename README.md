@@ -61,9 +61,14 @@ By default, ShellHopper opens the selected environment through `tmux`. If the pr
 
 - `ide`: starts the configured command, usually `nvim`
 - `shell`: interactive project shell
-- `serial`: interactive project shell reserved for serial-console work
+- `serial`: serial console using `tio`, with fallbacks for `picocom`, `minicom`, and `screen`
 
-The `serial` window starts as a normal shell so it is useful immediately, and can later be wired to a project-specific serial-console command.
+The `serial` window runs on the WSL host so USB serial devices do not need to be passed into the container. It auto-detects `/dev/serial/by-id/*`, `/dev/ttyACM*`, and `/dev/ttyUSB*`. Override it with:
+
+```sh
+export SHELLHOPPER_SERIAL_PORT=/dev/ttyACM0
+export SHELLHOPPER_SERIAL_BAUD=115200
+```
 
 Disable tmux for a launch:
 
@@ -122,6 +127,7 @@ The installer prepares the WSL side with:
 - `ripgrep`
 - `fd-find`
 - `tmux`
+- `tio`
 
 On Windows, the installer creates the ShellHopper Windows Terminal profile without a custom icon and hides the profile scrollbar. Generated direct environment profiles use the same iconless, hidden-scrollbar settings. Fonts are not installed by ShellHopper; install a Nerd Font manually if your terminal UI needs icon glyphs.
 

@@ -38,6 +38,9 @@ grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass tr
 grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
 grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
 grep -q 'tmux_enabled="${SHELLHOPPER_TMUX:-1}"' "$loader" || fail "tmux must be enabled by default"
+grep -q 'serial_console_command' "$loader" || fail "shellhopper must create a real serial console window command"
+grep -q 'SHELLHOPPER_SERIAL_PORT' "$loader" || fail "serial console must support an explicit serial port"
+grep -q 'tio' "$loader" || fail "serial console must prefer a PuTTY-like terminal serial tool"
 grep -q 'register_windows_terminal_profile' "$loader" || fail "selected containers must be registered as Windows Terminal profiles"
 grep -q 'scrollbarState' "$loader" || fail "generated Windows Terminal profiles must hide scrollbars"
 grep -q -- '--sessions' "$loader" || fail "shellhopper must list tmux sessions"
@@ -75,6 +78,7 @@ assert_contains "$output" "tmux"
 tmux_launch_output="$("$loader" --config "$config" --dry-run local-tools)"
 assert_contains "$tmux_launch_output" "-n shell"
 assert_contains "$tmux_launch_output" "-n serial"
+assert_contains "$tmux_launch_output" "SHELLHOPPER_SERIAL_PORT"
 if [[ "$tmux_launch_output" == *"-n logs"* ]]; then
   fail "direct tmux launch must not create a logs window"
 fi
@@ -107,6 +111,7 @@ TMUX_CAPTURE="$tmux_capture" PATH="$tmp_dir/bin:/usr/bin:/bin" "$loader" --confi
 tmux_output="$(cat "$tmux_capture")"
 assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [shell]"
 assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [serial]"
+assert_contains "$tmux_output" "tio"
 if [[ "$tmux_output" == *"[-n] [logs]"* ]]; then
   fail "tmux launch must not create a logs window"
 fi

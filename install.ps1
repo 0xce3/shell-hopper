@@ -105,7 +105,7 @@ if command -v tmux >/dev/null 2>&1; then
   tmux source-file ~/.config/tmux/tmux.conf >/dev/null 2>&1 || true
 fi
 sudo apt-get update || true
-sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find tmux || {
+sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find tmux tio || {
   echo 'Optional package installation failed. ShellHopper itself is installed.'
   echo 'Install missing tools manually if selection or editor features are unavailable.'
 }

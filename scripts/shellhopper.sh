@@ -154,6 +154,44 @@ workspace_command() {
   fi
 }
 
+serial_console_command() {
+  cat <<'SERIAL_COMMAND'
+baud="${SHELLHOPPER_SERIAL_BAUD:-115200}"
+port="${SHELLHOPPER_SERIAL_PORT:-}"
+
+if [[ -z "$port" ]]; then
+  for candidate in /dev/serial/by-id/* /dev/ttyACM* /dev/ttyUSB*; do
+    if [[ -e "$candidate" ]]; then
+      port="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$port" ]]; then
+  printf 'No serial device found.\n'
+  printf 'Set SHELLHOPPER_SERIAL_PORT, for example:\n'
+  printf '  export SHELLHOPPER_SERIAL_PORT=/dev/ttyACM0\n'
+  printf '  export SHELLHOPPER_SERIAL_BAUD=115200\n'
+  exec bash
+fi
+
+if command -v tio >/dev/null 2>&1; then
+  exec tio -b "$baud" "$port"
+elif command -v picocom >/dev/null 2>&1; then
+  exec picocom -b "$baud" "$port"
+elif command -v minicom >/dev/null 2>&1; then
+  exec minicom -D "$port" -b "$baud"
+elif command -v screen >/dev/null 2>&1; then
+  exec screen "$port" "$baud"
+else
+  printf 'No serial console tool found for %s at %s baud.\n' "$port" "$baud"
+  printf 'Install one of: tio, picocom, minicom, screen.\n'
+  exec bash
+fi
+SERIAL_COMMAND
+}
+
 tmux_command() {
   local name="$1"
   local ide_command="$2"
@@ -493,7 +531,7 @@ choose_entry() {
 launch_entry() {
   local row="$1"
   local source name kind target workspace command status
-  local inner_command shell_inner_command
+  local inner_command shell_inner_command serial_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
   set_terminal_title "$name"
 
@@ -513,7 +551,8 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
+        serial_inner_command="$(serial_console_command)"
+        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "bash -lc $(printf '%q' "$serial_inner_command")")"
       else
         run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
       fi
@@ -529,7 +568,8 @@ launch_entry() {
       if [[ "$tmux_enabled" == "1" ]]; then
         inner_command="$(workspace_command "$workspace" "$command")"
         shell_inner_command="$(workspace_command "$workspace" "bash")"
-        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")")"
+        serial_inner_command="$(serial_console_command)"
+        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "bash -lc $(printf '%q' "$serial_inner_command")")"
       else
         local sim_trigger bridge_pid
         sim_trigger="${target}/.shellhopper-sim-trigger"
@@ -552,7 +592,8 @@ launch_entry() {
       ;;
     wsl)
       if [[ "$tmux_enabled" == "1" ]]; then
-        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")")"
+        serial_inner_command="$(serial_console_command)"
+        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")" "bash -lc $(printf '%q' "$serial_inner_command")")"
       else
         run bash -lc "$(workspace_command "$workspace" "$command")"
       fi
