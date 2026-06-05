@@ -3,7 +3,6 @@ param(
     [string]$ProfileName = "ShellHopper",
     [string]$RepoUrl = "https://github.com/0xce3/shell-hopper.git",
     [string]$NvimConfigRepo = "",
-    [string]$ProfileIcon = "⚡",
     [switch]$SkipWindowsTerminalProfile
 )
 
@@ -53,17 +52,22 @@ function Install-WindowsTerminalProfile {
 
     if ($existing) {
         $existing.commandline = $commandLine
-        if (-not $existing.PSObject.Properties["icon"]) {
-            $existing | Add-Member -MemberType NoteProperty -Name icon -Value $ProfileIcon
+        $existing.startingDirectory = "%USERPROFILE%"
+        if (-not $existing.PSObject.Properties["scrollbarState"]) {
+            $existing | Add-Member -MemberType NoteProperty -Name scrollbarState -Value "hidden"
         }
-        $existing.icon = $ProfileIcon
+        $existing.scrollbarState = "hidden"
+        if ($existing.PSObject.Properties["icon"]) {
+            $existing.PSObject.Properties.Remove("icon")
+            $existing | Remove-Member -Name icon -ErrorAction SilentlyContinue
+        }
     } else {
         $profile = [pscustomobject]@{
             guid = "{$([guid]::NewGuid().ToString())}"
             name = $ProfileName
             commandline = $commandLine
             startingDirectory = "%USERPROFILE%"
-            icon = $ProfileIcon
+            scrollbarState = "hidden"
         }
         $settings.profiles.list += $profile
     }

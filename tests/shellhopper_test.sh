@@ -21,7 +21,8 @@ bash -n "$loader"
 grep -q 'LASTEXITCODE' "$repo_root/install.ps1" || fail "install.ps1 checks WSL exit codes"
 grep -q 'shellhopper.tmp' "$repo_root/install.ps1" || fail "Windows Terminal profile must refresh shellhopper launcher"
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
-grep -q 'ProfileIcon' "$repo_root/install.ps1" || fail "install.ps1 exposes a Windows Terminal profile icon"
+grep -q 'scrollbarState' "$repo_root/install.ps1" || fail "Windows Terminal profiles must hide scrollbars"
+grep -q 'Remove-Member -Name icon' "$repo_root/install.ps1" || fail "install.ps1 must remove ShellHopper profile icons"
 grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
 # shellcheck disable=SC2016
 grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
@@ -36,8 +37,9 @@ grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gru
 grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
 grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
 grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
-grep -q 'project_tasks_command' "$loader" || fail "shellhopper must create a real tasks window command"
-grep -q 'Space t r' "$loader" || fail "tasks window must point users to the Neovim task picker"
+grep -q 'tmux_enabled="${SHELLHOPPER_TMUX:-1}"' "$loader" || fail "tmux must be enabled by default"
+grep -q 'register_windows_terminal_profile' "$loader" || fail "selected containers must be registered as Windows Terminal profiles"
+grep -q 'scrollbarState' "$loader" || fail "generated Windows Terminal profiles must hide scrollbars"
 grep -q -- '--sessions' "$loader" || fail "shellhopper must list tmux sessions"
 grep -q -- '--kill NAME' "$loader" || fail "shellhopper must document session cleanup"
 grep -q 'kill-session' "$loader" || fail "shellhopper must support killing stale tmux sessions"
@@ -71,7 +73,8 @@ assert_contains "$output" "docker unavailable"
 assert_contains "$output" "tmux"
 
 tmux_launch_output="$("$loader" --config "$config" --dry-run local-tools)"
-assert_contains "$tmux_launch_output" "-n tasks"
+assert_contains "$tmux_launch_output" "-n shell"
+assert_contains "$tmux_launch_output" "-n serial"
 if [[ "$tmux_launch_output" == *"-n logs"* ]]; then
   fail "direct tmux launch must not create a logs window"
 fi
@@ -102,8 +105,8 @@ chmod +x "$tmp_dir/bin/tmux"
 tmux_capture="$tmp_dir/tmux.log"
 TMUX_CAPTURE="$tmux_capture" PATH="$tmp_dir/bin:/usr/bin:/bin" "$loader" --config "$config" local-tools >/dev/null
 tmux_output="$(cat "$tmux_capture")"
-assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [tasks]"
-assert_contains "$tmux_output" "Space t r"
+assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [shell]"
+assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [serial]"
 if [[ "$tmux_output" == *"[-n] [logs]"* ]]; then
   fail "tmux launch must not create a logs window"
 fi
@@ -114,7 +117,7 @@ cat >"$docker_bin/docker" <<'DOCKER'
 #!/usr/bin/env bash
 case "$1 $2" in
   "ps -a")
-    printf 'random_container\tUp 2 hours\n'
+    printf 'random_container\tExited (0) 2 hours ago\n'
     ;;
   "inspect -f")
     template="$3"
@@ -126,7 +129,7 @@ case "$1 $2" in
         printf '\n'
         ;;
       *'.State.Status'*)
-        printf 'running\n'
+        printf 'exited\n'
         ;;
       *'.Mounts'*)
         printf '/workspaces/cool-app\n'
@@ -152,6 +155,11 @@ assert_contains "$docker_output" "tmux"
 if [[ "$docker_output" == *"wsl.localhost"* ]]; then
   fail "docker project names must be shortened from UNC paths"
 fi
+
+docker_launch_output="$(SHELLHOPPER_REGISTER_PROFILES=1 PATH="$docker_bin:/usr/bin:/bin" "$loader" --config "$empty_config" --dry-run cool-app)"
+assert_contains "$docker_launch_output" "docker start random_container"
+assert_contains "$docker_launch_output" "register Windows Terminal profile: cool-app"
+assert_contains "$docker_launch_output" "scrollbarState"
 
 help_output="$("$loader" --help)"
 assert_contains "$help_output" "Project config format"

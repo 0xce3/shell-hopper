@@ -3,7 +3,7 @@ set -euo pipefail
 
 config_file="${SHELLHOPPER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/shellhopper/projects.tsv}"
 default_command="${SHELLHOPPER_COMMAND:-nvim}"
-tmux_enabled="${SHELLHOPPER_TMUX:-0}"
+tmux_enabled="${SHELLHOPPER_TMUX:-1}"
 dry_run=0
 list_only=0
 sessions_only=0
@@ -158,7 +158,8 @@ tmux_command() {
   local name="$1"
   local ide_command="$2"
   local shell_command="$3"
-  local session quoted_session quoted_title quoted_ide_command quoted_shell_command
+  local serial_command="${4:-$shell_command}"
+  local session quoted_session quoted_title quoted_ide_command quoted_shell_command quoted_serial_command
 
   if [[ "$tmux_enabled" != "1" ]]; then
     printf '%s\n' "$ide_command"
@@ -170,6 +171,7 @@ tmux_command() {
   quoted_title="$(printf '%q' "$name")"
   quoted_ide_command="$(printf '%q' "$ide_command")"
   quoted_shell_command="$(printf '%q' "$shell_command")"
+  quoted_serial_command="$(printf '%q' "$serial_command")"
 
   cat <<COMMAND
 if command -v tmux >/dev/null 2>&1; then
@@ -209,6 +211,7 @@ SHELLHOPPER_TMUX
     tmux set-option -t $quoted_session set-titles on >/dev/null;
     tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
     tmux new-window -t $quoted_session -n shell $quoted_shell_command;
+    tmux new-window -t $quoted_session -n serial $quoted_serial_command;
     tmux select-window -t $quoted_session:ide;
   }
   tmux -2 attach -t $quoted_session;
@@ -216,6 +219,89 @@ else
   eval $quoted_ide_command;
 fi
 COMMAND
+}
+
+windows_terminal_profile_name() {
+  printf '%s\n' "$1"
+}
+
+current_script_path() {
+  local source="${BASH_SOURCE[0]}"
+
+  if command -v readlink >/dev/null 2>&1; then
+    readlink -f "$source"
+  else
+    cd "$(dirname "$source")" && printf '%s/%s\n' "$PWD" "$(basename "$source")"
+  fi
+}
+
+windows_terminal_commandline() {
+  local entry="$1"
+  local distro shellhopper_path quoted_entry quoted_shellhopper_path bootstrap
+
+  distro="${WSL_DISTRO_NAME:-Ubuntu-22.04}"
+  shellhopper_path="${SHELLHOPPER_BIN:-$(current_script_path)}"
+  quoted_entry="$(printf '%q' "$entry")"
+  quoted_shellhopper_path="$(printf '%q' "$shellhopper_path")"
+  bootstrap="SHELLHOPPER_ENTRY=$quoted_entry exec $quoted_shellhopper_path"
+  printf 'wsl.exe -d %s -- bash -lc "%s"\n' "$distro" "$bootstrap"
+}
+
+register_windows_terminal_profile() {
+  local name="$1"
+  local entry="$2"
+  local profile_name commandline escaped_profile escaped_command powershell_command
+
+  [[ "${SHELLHOPPER_REGISTER_PROFILES:-1}" == "1" ]] || return 0
+
+  profile_name="$(windows_terminal_profile_name "$name")"
+  commandline="$(windows_terminal_commandline "$entry")"
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    printf '  # register Windows Terminal profile: %s\n' "$profile_name"
+    printf '  # commandline: %s\n' "$commandline"
+    printf '  # scrollbarState: hidden\n'
+    return 0
+  fi
+
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    return 0
+  fi
+
+  escaped_profile="${profile_name//\'/\'\'}"
+  escaped_command="${commandline//\'/\'\'}"
+  powershell_command="
+\$ErrorActionPreference = 'Stop'
+\$settingsPaths = @(
+  \"\$env:LOCALAPPDATA\\Packages\\Microsoft.WindowsTerminal_8wekyb3d8bbwe\\LocalState\\settings.json\",
+  \"\$env:LOCALAPPDATA\\Packages\\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\\LocalState\\settings.json\"
+)
+\$settingsPath = \$settingsPaths | Where-Object { Test-Path \$_ } | Select-Object -First 1
+if (-not \$settingsPath) { exit 0 }
+\$settings = Get-Content \$settingsPath -Raw | ConvertFrom-Json
+if (-not \$settings.profiles) { \$settings | Add-Member -MemberType NoteProperty -Name profiles -Value ([pscustomobject]@{ list = @() }) }
+if (-not \$settings.profiles.list) { \$settings.profiles | Add-Member -MemberType NoteProperty -Name list -Value @() }
+\$profileName = '$escaped_profile'
+\$commandLine = '$escaped_command'
+\$existing = \$settings.profiles.list | Where-Object { \$_.name -eq \$profileName } | Select-Object -First 1
+if (\$existing) {
+  \$existing.commandline = \$commandLine
+  \$existing.startingDirectory = '%USERPROFILE%'
+  if (-not \$existing.PSObject.Properties['scrollbarState']) { \$existing | Add-Member -MemberType NoteProperty -Name scrollbarState -Value 'hidden' }
+  \$existing.scrollbarState = 'hidden'
+  if (\$existing.PSObject.Properties['icon']) { \$existing.PSObject.Properties.Remove('icon') }
+} else {
+  \$settings.profiles.list += [pscustomobject]@{
+    guid = \"{\$([guid]::NewGuid().ToString())}\"
+    name = \$profileName
+    commandline = \$commandLine
+    startingDirectory = '%USERPROFILE%'
+    scrollbarState = 'hidden'
+  }
+}
+\$settings | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 \$settingsPath
+"
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$powershell_command" >/dev/null 2>&1 || true
 }
 
 list_sessions() {
@@ -413,8 +499,15 @@ launch_entry() {
 
   case "$kind" in
     container)
+      if [[ "$source" == "docker" ]]; then
+        register_windows_terminal_profile "$name" "$name"
+      fi
       if [[ "$(container_status "$target")" != "running" ]]; then
-        docker start "$target" >/dev/null
+        if [[ "$dry_run" -eq 1 ]]; then
+          printf '  $ docker start %q\n' "$target"
+        else
+          docker start "$target" >/dev/null
+        fi
       fi
 
       if [[ "$tmux_enabled" == "1" ]]; then
@@ -426,6 +519,7 @@ launch_entry() {
       fi
       ;;
     devcontainer)
+      register_windows_terminal_profile "$name" "$name"
       if ! command -v devcontainer >/dev/null 2>&1; then
         log "devcontainer CLI not found. Install it with: npm install -g @devcontainers/cli"
         exit 1
