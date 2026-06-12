@@ -64,6 +64,13 @@ ShellHopper opens the selected environment in two Windows Terminal tabs:
 
 Both tabs use the same project workspace. For container and devcontainer entries, both tabs enter the target environment before changing to the configured workspace.
 
+When you open an environment through ShellHopper, it also creates two direct Windows Terminal profiles:
+
+- `<name> [nvim]`
+- `<name> [shell]`
+
+Use those profiles later to start only the editor or only the shell without going through the ShellHopper picker again.
+
 ## Project Registry
 
 ShellHopper reads a tab-separated project registry from:
@@ -89,7 +96,7 @@ Kinds:
 
 When Docker is available, ShellHopper also discovers existing containers automatically, including stopped containers. It tries to infer a readable project name from `devcontainer.local_folder`, then Docker Compose labels, then the container name. It also detects workspace mounts such as `/workspaces/app` and `/workspace`.
 
-When you select a discovered Docker container or devcontainer from the ShellHopper menu, ShellHopper creates or updates a direct Windows Terminal profile named `<name>`. Opening that profile later skips the menu, starts the container if needed, and opens the two project tabs directly.
+When you select an environment from the ShellHopper menu, ShellHopper creates or updates direct Windows Terminal profiles named `<name> [nvim]` and `<name> [shell]`. Opening either profile later skips the menu, starts the container if needed, and attaches directly to that editor or shell tab.
 
 ## Requirements
 

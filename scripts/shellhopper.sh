@@ -6,6 +6,7 @@ default_command="${SHELLHOPPER_COMMAND:-nvim}"
 dry_run=0
 list_only=0
 entry_filter="${SHELLHOPPER_ENTRY:-}"
+profile_mode="${SHELLHOPPER_PROFILE_MODE:-}"
 
 usage() {
   cat <<'USAGE'
@@ -155,7 +156,14 @@ windows_terminal_tabs() {
 }
 
 windows_terminal_profile_name() {
-  printf '%s\n' "$1"
+  local name="$1"
+  local mode="${2:-}"
+
+  if [[ -n "$mode" ]]; then
+    printf '%s [%s]\n' "$name" "$mode"
+  else
+    printf '%s\n' "$name"
+  fi
 }
 
 current_script_path() {
@@ -170,25 +178,32 @@ current_script_path() {
 
 windows_terminal_commandline() {
   local entry="$1"
-  local distro shellhopper_path quoted_entry quoted_shellhopper_path bootstrap
+  local mode="${2:-}"
+  local distro shellhopper_path quoted_entry quoted_mode quoted_shellhopper_path bootstrap
 
   distro="${WSL_DISTRO_NAME:-Ubuntu-22.04}"
   shellhopper_path="${SHELLHOPPER_BIN:-$(current_script_path)}"
   quoted_entry="$(printf '%q' "$entry")"
+  quoted_mode="$(printf '%q' "$mode")"
   quoted_shellhopper_path="$(printf '%q' "$shellhopper_path")"
-  bootstrap="SHELLHOPPER_ENTRY=$quoted_entry exec $quoted_shellhopper_path"
+  if [[ -n "$mode" ]]; then
+    bootstrap="SHELLHOPPER_ENTRY=$quoted_entry SHELLHOPPER_PROFILE_MODE=$quoted_mode exec $quoted_shellhopper_path"
+  else
+    bootstrap="SHELLHOPPER_ENTRY=$quoted_entry exec $quoted_shellhopper_path"
+  fi
   printf 'wsl.exe -d %s -- bash -lc "%s"\n' "$distro" "$bootstrap"
 }
 
 register_windows_terminal_profile() {
   local name="$1"
   local entry="$2"
+  local mode="${3:-}"
   local profile_name commandline escaped_profile escaped_command powershell_command
 
   [[ "${SHELLHOPPER_REGISTER_PROFILES:-1}" == "1" ]] || return 0
 
-  profile_name="$(windows_terminal_profile_name "$name")"
-  commandline="$(windows_terminal_commandline "$entry")"
+  profile_name="$(windows_terminal_profile_name "$name" "$mode")"
+  commandline="$(windows_terminal_commandline "$entry" "$mode")"
 
   if [[ "$dry_run" -eq 1 ]]; then
     printf '  # register Windows Terminal profile: %s\n' "$profile_name"
@@ -235,6 +250,14 @@ if (\$existing) {
 \$settings | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 \$settingsPath
 "
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$powershell_command" >/dev/null 2>&1 || true
+}
+
+register_windows_terminal_profiles() {
+  local name="$1"
+  local entry="$2"
+
+  register_windows_terminal_profile "$name" "$entry" "nvim"
+  register_windows_terminal_profile "$name" "$entry" "shell"
 }
 
 read_config_entries() {
@@ -398,12 +421,10 @@ launch_entry() {
   local inner_command shell_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
   set_terminal_title "$name"
+  register_windows_terminal_profiles "$name" "$name"
 
   case "$kind" in
     container)
-      if [[ "$source" == "docker" ]]; then
-        register_windows_terminal_profile "$name" "$name"
-      fi
       if [[ "$(container_status "$target")" != "running" ]]; then
         if [[ "$dry_run" -eq 1 ]]; then
           printf '  $ docker start %q\n' "$target"
@@ -414,12 +435,25 @@ launch_entry() {
 
       inner_command="$(workspace_command "$workspace" "$command")"
       shell_inner_command="$(workspace_command "$workspace" "bash")"
-      windows_terminal_tabs "$name" \
-        "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
-        "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
+      case "$profile_mode" in
+        nvim)
+          run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$inner_command"
+          ;;
+        shell)
+          run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$shell_inner_command"
+          ;;
+        "")
+          windows_terminal_tabs "$name" \
+            "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
+            "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
+          ;;
+        *)
+          log "Unsupported ShellHopper profile mode: $profile_mode"
+          exit 2
+          ;;
+      esac
       ;;
     devcontainer)
-      register_windows_terminal_profile "$name" "$name"
       if ! command -v devcontainer >/dev/null 2>&1; then
         log "devcontainer CLI not found. Install it with: npm install -g @devcontainers/cli"
         exit 1
@@ -428,12 +462,42 @@ launch_entry() {
       devcontainer up --workspace-folder "$target"
       inner_command="$(workspace_command "$workspace" "$command")"
       shell_inner_command="$(workspace_command "$workspace" "bash")"
-      windows_terminal_tabs "$name" \
-        "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
-        "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
+      case "$profile_mode" in
+        nvim)
+          run devcontainer exec --workspace-folder "$target" bash -lc "$inner_command"
+          ;;
+        shell)
+          run devcontainer exec --workspace-folder "$target" bash -lc "$shell_inner_command"
+          ;;
+        "")
+          windows_terminal_tabs "$name" \
+            "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
+            "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
+          ;;
+        *)
+          log "Unsupported ShellHopper profile mode: $profile_mode"
+          exit 2
+          ;;
+      esac
       ;;
     wsl)
-      windows_terminal_tabs "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")"
+      inner_command="$(workspace_command "$workspace" "$command")"
+      shell_inner_command="$(workspace_command "$workspace" "bash")"
+      case "$profile_mode" in
+        nvim)
+          run bash -lc "$inner_command"
+          ;;
+        shell)
+          run bash -lc "$shell_inner_command"
+          ;;
+        "")
+          windows_terminal_tabs "$name" "$inner_command" "$shell_inner_command"
+          ;;
+        *)
+          log "Unsupported ShellHopper profile mode: $profile_mode"
+          exit 2
+          ;;
+      esac
       ;;
     *)
       log "Unsupported environment kind: $kind"

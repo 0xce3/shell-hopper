@@ -36,6 +36,7 @@ grep -q 'new-tab' "$loader" || fail "shellhopper must create Windows Terminal ta
 grep -q 'nvim' "$loader" || fail "shellhopper must name the editor tab"
 grep -q 'shell' "$loader" || fail "shellhopper must name the shell tab"
 grep -q 'register_windows_terminal_profile' "$loader" || fail "selected containers must be registered as Windows Terminal profiles"
+grep -q 'SHELLHOPPER_PROFILE_MODE' "$loader" || fail "direct Windows Terminal profiles must launch one tab mode"
 grep -q 'scrollbarState' "$loader" || fail "generated Windows Terminal profiles must hide scrollbars"
 if grep -q 'tmux' "$loader"; then
   fail "shellhopper.sh must not reference tmux"
@@ -104,6 +105,12 @@ if [[ "$(grep -Fo '[new-tab]' <<<"$wt_output" | wc -l)" -ne 2 ]]; then
   fail "wt launch must create exactly two tabs"
 fi
 
+wsl_profile_output="$(SHELLHOPPER_REGISTER_PROFILES=1 "$loader" --config "$config" --dry-run local-tools)"
+assert_contains "$wsl_profile_output" "register Windows Terminal profile: local-tools [nvim]"
+assert_contains "$wsl_profile_output" "register Windows Terminal profile: local-tools [shell]"
+assert_contains "$wsl_profile_output" "SHELLHOPPER_PROFILE_MODE=nvim"
+assert_contains "$wsl_profile_output" "SHELLHOPPER_PROFILE_MODE=shell"
+
 docker_bin="$tmp_dir/bin"
 mkdir -p "$docker_bin"
 cat >"$docker_bin/docker" <<'DOCKER'
@@ -153,7 +160,8 @@ fi
 
 docker_launch_output="$(SHELLHOPPER_REGISTER_PROFILES=1 PATH="$docker_bin:/usr/bin:/bin" "$loader" --config "$empty_config" --dry-run cool-app)"
 assert_contains "$docker_launch_output" "docker start random_container"
-assert_contains "$docker_launch_output" "register Windows Terminal profile: cool-app"
+assert_contains "$docker_launch_output" "register Windows Terminal profile: cool-app [nvim]"
+assert_contains "$docker_launch_output" "register Windows Terminal profile: cool-app [shell]"
 assert_contains "$docker_launch_output" "scrollbarState"
 
 help_output="$("$loader" --help)"
