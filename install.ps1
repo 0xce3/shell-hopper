@@ -90,21 +90,8 @@ chmod +x ~/.local/bin/shellhopper ~/.local/bin/shellhopper-sim-bridge
 if [ ! -f ~/.config/shellhopper/projects.tsv ]; then
   curl -fsSL https://raw.githubusercontent.com/0xce3/shell-hopper/main/templates/projects.tsv -o ~/.config/shellhopper/projects.tsv
 fi
-mkdir -p ~/.config/tmux ~/.config/shellhopper
-cat > ~/.config/tmux/tmux.conf <<'SHELLHOPPER_TMUX'
-set -g default-terminal "tmux-256color"
-set -g terminal-overrides ",*:RGB"
-set -g terminal-features "*:RGB"
-set -g status-style "bg=#32302f,fg=#ebdbb2"
-set -g window-status-current-style "bg=#504945,fg=#fabd2f,bold"
-set -g window-status-style "bg=#32302f,fg=#a89984"
-SHELLHOPPER_TMUX
-cp ~/.config/tmux/tmux.conf ~/.config/shellhopper/tmux.conf
-if command -v tmux >/dev/null 2>&1; then
-  tmux source-file ~/.config/tmux/tmux.conf >/dev/null 2>&1 || true
-fi
 sudo apt-get update || true
-sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find tmux tio || {
+sudo apt-get install -y curl git fzf jq neovim ripgrep fd-find || {
   echo 'Optional package installation failed. ShellHopper itself is installed.'
   echo 'Install missing tools manually if selection or editor features are unavailable.'
 }

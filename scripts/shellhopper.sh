@@ -3,16 +3,13 @@ set -euo pipefail
 
 config_file="${SHELLHOPPER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/shellhopper/projects.tsv}"
 default_command="${SHELLHOPPER_COMMAND:-nvim}"
-tmux_enabled="${SHELLHOPPER_TMUX:-1}"
 dry_run=0
 list_only=0
-sessions_only=0
-kill_target=""
 entry_filter="${SHELLHOPPER_ENTRY:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: shellhopper [--config PATH] [--dry-run] [--list] [--sessions] [--kill NAME] [NAME]
+Usage: shellhopper [--config PATH] [--dry-run] [--list] [NAME]
 
 Select a development environment and open a shell or Neovim inside it.
 
@@ -28,9 +25,6 @@ Examples:
   app<TAB>container<TAB>app-dev<TAB>/workspaces/app<TAB>nvim
   tools<TAB>wsl<TAB>-<TAB>/home/user/src/tools<TAB>nvim
 
-Session management:
-  --sessions   List ShellHopper tmux sessions.
-  --kill NAME  Kill the ShellHopper tmux session for NAME.
 USAGE
 }
 
@@ -134,12 +128,6 @@ docker_workspace() {
   printf '%s\n' "-"
 }
 
-session_name() {
-  local name="$1"
-  name="${name//[^[:alnum:]_-]/_}"
-  printf 'sh-%s\n' "${name:-dev}"
-}
-
 workspace_command() {
   local workspace="$1"
   local command="$2"
@@ -154,109 +142,16 @@ workspace_command() {
   fi
 }
 
-serial_console_command() {
-  cat <<'SERIAL_COMMAND'
-baud="${SHELLHOPPER_SERIAL_BAUD:-115200}"
-port="${SHELLHOPPER_SERIAL_PORT:-}"
-
-if [[ -z "$port" ]]; then
-  for candidate in /dev/serial/by-id/* /dev/ttyACM* /dev/ttyUSB*; do
-    if [[ -e "$candidate" ]]; then
-      port="$candidate"
-      break
-    fi
-  done
-fi
-
-if [[ -z "$port" ]]; then
-  printf 'No serial device found.\n'
-  printf 'Set SHELLHOPPER_SERIAL_PORT, for example:\n'
-  printf '  export SHELLHOPPER_SERIAL_PORT=/dev/ttyACM0\n'
-  printf '  export SHELLHOPPER_SERIAL_BAUD=115200\n'
-  exec bash
-fi
-
-if command -v tio >/dev/null 2>&1; then
-  exec tio -b "$baud" "$port"
-elif command -v picocom >/dev/null 2>&1; then
-  exec picocom -b "$baud" "$port"
-elif command -v minicom >/dev/null 2>&1; then
-  exec minicom -D "$port" -b "$baud"
-elif command -v screen >/dev/null 2>&1; then
-  exec screen "$port" "$baud"
-else
-  printf 'No serial console tool found for %s at %s baud.\n' "$port" "$baud"
-  printf 'Install one of: tio, picocom, minicom, screen.\n'
-  exec bash
-fi
-SERIAL_COMMAND
-}
-
-tmux_command() {
+windows_terminal_tabs() {
   local name="$1"
   local ide_command="$2"
   local shell_command="$3"
-  local serial_command="${4:-$shell_command}"
-  local session quoted_session quoted_title quoted_ide_command quoted_shell_command quoted_serial_command
+  local distro="${WSL_DISTRO_NAME:-Ubuntu-22.04}"
 
-  if [[ "$tmux_enabled" != "1" ]]; then
-    printf '%s\n' "$ide_command"
-    return 0
-  fi
-
-  session="$(session_name "$name")"
-  quoted_session="$(printf '%q' "$session")"
-  quoted_title="$(printf '%q' "$name")"
-  quoted_ide_command="$(printf '%q' "$ide_command")"
-  quoted_shell_command="$(printf '%q' "$shell_command")"
-  quoted_serial_command="$(printf '%q' "$serial_command")"
-
-  cat <<COMMAND
-if command -v tmux >/dev/null 2>&1; then
-  mkdir -p ~/.config/tmux ~/.config/shellhopper;
-  cat > ~/.config/tmux/tmux.conf <<'SHELLHOPPER_TMUX'
-set -g default-terminal "tmux-256color"
-set -g terminal-overrides ",*:RGB"
-set -g terminal-features "*:RGB"
-
-# Status bar
-set -g status on
-set -g status-position bottom
-set -g status-interval 0
-set -g status-style "bg=#32302f,fg=#a89984"
-
-# Left: project name (strip sh- prefix)
-set -g status-left-length 40
-set -g status-left "#[bg=#504945,fg=#fabd2f,bold]  #{E:SHELLHOPPER_NAME}  #[default] "
-
-# Right: empty
-set -g status-right ""
-set -g status-right-length 0
-
-# Window tabs — index: name
-set -g window-status-format         "#[bg=#32302f,fg=#a89984]  #I: #W  "
-set -g window-status-current-format "#[bg=#504945,fg=#fabd2f,bold]  #I: #W  "
-set -g window-status-separator      ""
-SHELLHOPPER_TMUX
-  cp ~/.config/tmux/tmux.conf ~/.config/shellhopper/tmux.conf;
-  tmux source-file ~/.config/tmux/tmux.conf >/dev/null 2>&1 || true;
-  tmux set-option -g default-terminal tmux-256color >/dev/null;
-  tmux set-option -g terminal-overrides ',*:RGB' >/dev/null;
-  tmux set-option -g terminal-features '*:RGB' >/dev/null 2>&1 || true;
-  tmux has-session -t $quoted_session 2>/dev/null || {
-    tmux new-session -d -s $quoted_session -n ide $quoted_ide_command;
-    tmux set-environment -t $quoted_session SHELLHOPPER_NAME $quoted_title >/dev/null;
-    tmux set-option -t $quoted_session set-titles on >/dev/null;
-    tmux set-option -t $quoted_session set-titles-string $quoted_title >/dev/null;
-    tmux new-window -t $quoted_session -n shell $quoted_shell_command;
-    tmux new-window -t $quoted_session -n serial $quoted_serial_command;
-    tmux select-window -t $quoted_session:ide;
-  }
-  tmux -2 attach -t $quoted_session;
-else
-  eval $quoted_ide_command;
-fi
-COMMAND
+  run wt.exe \
+    new-tab --title "$name:nvim" -- wsl.exe -d "$distro" -- bash -lc "$ide_command" \
+    ';' \
+    new-tab --title "$name:shell" -- wsl.exe -d "$distro" -- bash -lc "$shell_command"
 }
 
 windows_terminal_profile_name() {
@@ -342,29 +237,6 @@ if (\$existing) {
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$powershell_command" >/dev/null 2>&1 || true
 }
 
-list_sessions() {
-  if ! command -v tmux >/dev/null 2>&1; then
-    log "tmux unavailable"
-    return 0
-  fi
-
-  tmux list-sessions -F '#{session_name} windows=#{session_windows} attached=#{session_attached}' 2>/dev/null |
-    awk '$1 ~ /^sh-/ { print }'
-}
-
-kill_session() {
-  local target="$1"
-  local session
-
-  session="$(session_name "$target")"
-  if [[ "$dry_run" -eq 1 ]]; then
-    printf '  $ tmux kill-session -t %q\n' "$session"
-    return 0
-  fi
-
-  tmux kill-session -t "$session"
-}
-
 read_config_entries() {
   ensure_config
 
@@ -422,24 +294,16 @@ entries() {
 }
 
 display_entries() {
-  entries | awk -F '\t' -v tmux="$tmux_enabled" '{
-    command = $6
-    if (tmux == "1") {
-      command = "tmux:" command
-    }
-    printf "%-12s %-28s %-13s %-28s %s\n", $1, $2, $3, command, $7
+  entries | awk -F '\t' '{
+    printf "%-12s %-28s %-13s %-28s %s\n", $1, $2, $3, $6, $7
   }'
 }
 
 fzf_entries() {
-  entries | awk -F '\t' -v tmux="$tmux_enabled" '
+  entries | awk -F '\t' '
     function color(code, text) { return sprintf("\033[%sm%s\033[0m", code, text) }
     {
       command = $6
-      if (tmux == "1") {
-        command = "tmux:" command
-      }
-
       status_icon = color("33", "◐")
       status_text = $7
       if ($7 ~ /^Up/) {
@@ -531,7 +395,7 @@ choose_entry() {
 launch_entry() {
   local row="$1"
   local source name kind target workspace command status
-  local inner_command shell_inner_command serial_inner_command
+  local inner_command shell_inner_command
   IFS=$'\t' read -r source name kind target workspace command status <<<"$row"
   set_terminal_title "$name"
 
@@ -548,14 +412,11 @@ launch_entry() {
         fi
       fi
 
-      if [[ "$tmux_enabled" == "1" ]]; then
-        inner_command="$(workspace_command "$workspace" "$command")"
-        shell_inner_command="$(workspace_command "$workspace" "bash")"
-        serial_inner_command="$(serial_console_command)"
-        run bash -lc "$(tmux_command "$name" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "docker exec -e TERM=tmux-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "bash -lc $(printf '%q' "$serial_inner_command")")"
-      else
-        run docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it "$target" bash -lc "$(workspace_command "$workspace" "$command")"
-      fi
+      inner_command="$(workspace_command "$workspace" "$command")"
+      shell_inner_command="$(workspace_command "$workspace" "bash")"
+      windows_terminal_tabs "$name" \
+        "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
+        "docker exec -e TERM=xterm-256color -e COLORTERM=truecolor -it $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
       ;;
     devcontainer)
       register_windows_terminal_profile "$name" "$name"
@@ -565,38 +426,14 @@ launch_entry() {
       fi
 
       devcontainer up --workspace-folder "$target"
-      if [[ "$tmux_enabled" == "1" ]]; then
-        inner_command="$(workspace_command "$workspace" "$command")"
-        shell_inner_command="$(workspace_command "$workspace" "bash")"
-        serial_inner_command="$(serial_console_command)"
-        run bash -lc "$(tmux_command "$name" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")" "bash -lc $(printf '%q' "$serial_inner_command")")"
-      else
-        local sim_trigger bridge_pid
-        sim_trigger="${target}/.shellhopper-sim-trigger"
-        rm -f "$sim_trigger"
-        bridge_pid=""
-
-        if command -v shellhopper-sim-bridge >/dev/null 2>&1; then
-          shellhopper-sim-bridge "$sim_trigger" "$target" &
-          bridge_pid=$!
-        fi
-
-        devcontainer exec --workspace-folder "$target" bash -lc "$(workspace_command "$workspace" "$command")" || true
-
-        if [[ -n "$bridge_pid" ]]; then
-          kill "$bridge_pid" 2>/dev/null || true
-          wait "$bridge_pid" 2>/dev/null || true
-        fi
-        rm -f "$sim_trigger"
-      fi
+      inner_command="$(workspace_command "$workspace" "$command")"
+      shell_inner_command="$(workspace_command "$workspace" "bash")"
+      windows_terminal_tabs "$name" \
+        "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$inner_command")" \
+        "devcontainer exec --workspace-folder $(printf '%q' "$target") bash -lc $(printf '%q' "$shell_inner_command")"
       ;;
     wsl)
-      if [[ "$tmux_enabled" == "1" ]]; then
-        serial_inner_command="$(serial_console_command)"
-        run bash -lc "$(tmux_command "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")" "bash -lc $(printf '%q' "$serial_inner_command")")"
-      else
-        run bash -lc "$(workspace_command "$workspace" "$command")"
-      fi
+      windows_terminal_tabs "$name" "$(workspace_command "$workspace" "$command")" "$(workspace_command "$workspace" "bash")"
       ;;
     *)
       log "Unsupported environment kind: $kind"
@@ -618,17 +455,6 @@ main() {
       --list)
         list_only=1
         ;;
-      --sessions)
-        sessions_only=1
-        ;;
-      --kill)
-        if [[ $# -lt 2 ]]; then
-          usage >&2
-          exit 2
-        fi
-        kill_target="$2"
-        shift
-        ;;
       -h|--help)
         usage
         exit 0
@@ -644,16 +470,6 @@ main() {
     esac
     shift
   done
-
-  if [[ "$sessions_only" -eq 1 ]]; then
-    list_sessions
-    return 0
-  fi
-
-  if [[ -n "$kill_target" ]]; then
-    kill_session "$kill_target"
-    return 0
-  fi
 
   choose_entry
 }

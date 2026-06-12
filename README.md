@@ -57,36 +57,12 @@ Use a custom registry:
 shellhopper --config ~/.config/shellhopper/projects.tsv
 ```
 
-By default, ShellHopper opens the selected environment through `tmux`. If the project session already exists, ShellHopper attaches to it. New sessions get these windows:
+ShellHopper opens the selected environment in two Windows Terminal tabs:
 
-- `ide`: starts the configured command, usually `nvim`
+- `nvim`: starts the configured command, usually `nvim`
 - `shell`: interactive project shell
-- `serial`: serial console using `tio`, with fallbacks for `picocom`, `minicom`, and `screen`
 
-The `serial` window runs on the WSL host so USB serial devices do not need to be passed into the container. It auto-detects `/dev/serial/by-id/*`, `/dev/ttyACM*`, and `/dev/ttyUSB*`. Override it with:
-
-```sh
-export SHELLHOPPER_SERIAL_PORT=/dev/ttyACM0
-export SHELLHOPPER_SERIAL_BAUD=115200
-```
-
-Disable tmux for a launch:
-
-```sh
-SHELLHOPPER_TMUX=0 shellhopper
-```
-
-List ShellHopper tmux sessions:
-
-```sh
-shellhopper --sessions
-```
-
-Kill a stale ShellHopper session and its `nvim`/container attach processes:
-
-```sh
-shellhopper --kill app
-```
+Both tabs use the same project workspace. For container and devcontainer entries, both tabs enter the target environment before changing to the configured workspace.
 
 ## Project Registry
 
@@ -113,7 +89,7 @@ Kinds:
 
 When Docker is available, ShellHopper also discovers existing containers automatically, including stopped containers. It tries to infer a readable project name from `devcontainer.local_folder`, then Docker Compose labels, then the container name. It also detects workspace mounts such as `/workspaces/app` and `/workspace`.
 
-When you select a discovered Docker container or devcontainer from the ShellHopper menu, ShellHopper creates or updates a direct Windows Terminal profile named `<name>`. Opening that profile later skips the menu, starts the container if needed, and attaches to the existing tmux session when one is available.
+When you select a discovered Docker container or devcontainer from the ShellHopper menu, ShellHopper creates or updates a direct Windows Terminal profile named `<name>`. Opening that profile later skips the menu, starts the container if needed, and opens the two project tabs directly.
 
 ## Requirements
 
@@ -126,8 +102,6 @@ The installer prepares the WSL side with:
 - `neovim`
 - `ripgrep`
 - `fd-find`
-- `tmux`
-- `tio`
 
 On Windows, the installer creates the ShellHopper Windows Terminal profile without a custom icon and hides the profile scrollbar. Generated direct environment profiles use the same iconless, hidden-scrollbar settings. Fonts are not installed by ShellHopper; install a Nerd Font manually if your terminal UI needs icon glyphs.
 

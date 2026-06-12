@@ -23,32 +23,26 @@ grep -q 'shellhopper.tmp' "$repo_root/install.ps1" || fail "Windows Terminal pro
 grep -q 'Optional package installation failed' "$repo_root/install.ps1" || fail "apt package installation is best effort"
 grep -q 'scrollbarState' "$repo_root/install.ps1" || fail "Windows Terminal profiles must hide scrollbars"
 grep -q 'PSObject.Properties.Remove("icon")' "$repo_root/install.ps1" || fail "install.ps1 must remove ShellHopper profile icons"
-grep -q 'tmux' "$repo_root/install.ps1" || fail "install.ps1 installs tmux"
+if grep -q 'tmux' "$repo_root/install.ps1"; then
+  fail "install.ps1 must not install or configure tmux"
+fi
 if grep -q 'Remove-Member' "$repo_root/install.ps1"; then
   fail "install.ps1 must not call unavailable Remove-Member cmdlet"
 fi
-# shellcheck disable=SC2016
-grep -Fq 'name="${name//[^[:alnum:]_-]/_}"' "$loader" || fail "tmux session names must not allow dots"
 grep -q 'set_terminal_title' "$loader" || fail "shellhopper sets terminal tab title"
-grep -q 'set-titles-string' "$loader" || fail "tmux sets a short terminal title"
-grep -q 'default-terminal tmux-256color' "$loader" || fail "tmux must use tmux-256color"
-grep -q 'terminal-overrides.*RGB' "$loader" || fail "tmux must enable RGB truecolor"
-grep -q '.config/tmux/tmux.conf' "$loader" || fail "shellhopper must write standard tmux config"
-grep -q 'tmux source-file ~/.config/tmux/tmux.conf' "$loader" || fail "shellhopper must source tmux config"
-grep -q '.config/tmux/tmux.conf' "$repo_root/install.ps1" || fail "install.ps1 must install tmux config"
-grep -q 'status-style.*#32302f' "$loader" || fail "tmux status line must use gruvbox colors"
 grep -q 'COLORTERM=truecolor' "$loader" || fail "container launches must pass truecolor"
-grep -q 'TERM=tmux-256color' "$loader" || fail "tmux container launches must pass tmux TERM"
-grep -q 'tmux -2 attach' "$loader" || fail "tmux attach must force 256-color mode"
-grep -q 'tmux_enabled="${SHELLHOPPER_TMUX:-1}"' "$loader" || fail "tmux must be enabled by default"
-grep -q 'serial_console_command' "$loader" || fail "shellhopper must create a real serial console window command"
-grep -q 'SHELLHOPPER_SERIAL_PORT' "$loader" || fail "serial console must support an explicit serial port"
-grep -q 'tio' "$loader" || fail "serial console must prefer a PuTTY-like terminal serial tool"
+grep -q 'wt.exe' "$loader" || fail "shellhopper must open Windows Terminal tabs"
+grep -q 'new-tab' "$loader" || fail "shellhopper must create Windows Terminal tabs"
+grep -q 'nvim' "$loader" || fail "shellhopper must name the editor tab"
+grep -q 'shell' "$loader" || fail "shellhopper must name the shell tab"
 grep -q 'register_windows_terminal_profile' "$loader" || fail "selected containers must be registered as Windows Terminal profiles"
 grep -q 'scrollbarState' "$loader" || fail "generated Windows Terminal profiles must hide scrollbars"
-grep -q -- '--sessions' "$loader" || fail "shellhopper must list tmux sessions"
-grep -q -- '--kill NAME' "$loader" || fail "shellhopper must document session cleanup"
-grep -q 'kill-session' "$loader" || fail "shellhopper must support killing stale tmux sessions"
+if grep -q 'tmux' "$loader"; then
+  fail "shellhopper.sh must not reference tmux"
+fi
+if grep -q -- '--sessions' "$loader" || grep -q -- '--kill NAME' "$loader" || grep -q 'kill-session' "$loader"; then
+  fail "shellhopper must not expose tmux session management"
+fi
 grep -q "ShellHopper > " "$loader" || fail "fzf menu must use a clear ShellHopper prompt"
 grep -q -- "--preview-window" "$loader" || fail "fzf menu must show entry details"
 grep -q 'SHELLHOPPER_ENTRY' "$loader" || fail "shellhopper supports direct entry launch"
@@ -76,47 +70,38 @@ output="$("$loader" --config "$config" --dry-run)"
 assert_contains "$output" "local-tools"
 assert_contains "$output" "container-tools"
 assert_contains "$output" "docker unavailable"
-assert_contains "$output" "tmux"
-
-tmux_launch_output="$("$loader" --config "$config" --dry-run local-tools)"
-assert_contains "$tmux_launch_output" "-n shell"
-assert_contains "$tmux_launch_output" "-n serial"
-assert_contains "$tmux_launch_output" "SHELLHOPPER_SERIAL_PORT"
-if [[ "$tmux_launch_output" == *"-n logs"* ]]; then
-  fail "direct tmux launch must not create a logs window"
+if [[ "$output" == *"tmux"* ]]; then
+  fail "environment list must not mention tmux"
 fi
 
-direct_output="$(SHELLHOPPER_TMUX=0 "$loader" --config "$config" --dry-run local-tools)"
-assert_contains "$direct_output" "local-tools"
-assert_contains "$direct_output" "nvim"
-
-kill_output="$("$loader" --dry-run --kill local-tools)"
-assert_contains "$kill_output" "tmux"
-assert_contains "$kill_output" "kill-session"
-assert_contains "$kill_output" "sh-local-tools"
+wt_launch_output="$("$loader" --config "$config" --dry-run local-tools)"
+assert_contains "$wt_launch_output" "wt.exe"
+assert_contains "$wt_launch_output" "new-tab"
+assert_contains "$wt_launch_output" "local-tools:nvim"
+assert_contains "$wt_launch_output" "local-tools:shell"
+assert_contains "$wt_launch_output" "cd\\ /home/user/src/tools\\ \\&\\&\\ nvim"
+assert_contains "$wt_launch_output" "cd\\ /home/user/src/tools\\ \\&\\&\\ bash"
+if [[ "$(grep -o 'new-tab' <<<"$wt_launch_output" | wc -l)" -ne 2 ]]; then
+  fail "launch must create exactly two Windows Terminal tabs"
+fi
 
 mkdir -p "$tmp_dir/bin"
-cat >"$tmp_dir/bin/tmux" <<'TMUX'
+cat >"$tmp_dir/bin/wt.exe" <<'WT'
 #!/usr/bin/env bash
-printf 'TMUX argc=%s:' "$#" >> "$TMUX_CAPTURE"
-printf ' [%s]' "$@" >> "$TMUX_CAPTURE"
-printf '\n' >> "$TMUX_CAPTURE"
-case "$1" in
-  has-session) exit 1 ;;
-  attach) exit 0 ;;
-esac
-exit 0
-TMUX
-chmod +x "$tmp_dir/bin/tmux"
+printf 'WT argc=%s:' "$#" >> "$WT_CAPTURE"
+printf ' [%s]' "$@" >> "$WT_CAPTURE"
+printf '\n' >> "$WT_CAPTURE"
+WT
+chmod +x "$tmp_dir/bin/wt.exe"
 
-tmux_capture="$tmp_dir/tmux.log"
-TMUX_CAPTURE="$tmux_capture" PATH="$tmp_dir/bin:/usr/bin:/bin" "$loader" --config "$config" local-tools >/dev/null
-tmux_output="$(cat "$tmux_capture")"
-assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [shell]"
-assert_contains "$tmux_output" "[new-window] [-t] [sh-local-tools] [-n] [serial]"
-assert_contains "$tmux_output" "tio"
-if [[ "$tmux_output" == *"[-n] [logs]"* ]]; then
-  fail "tmux launch must not create a logs window"
+wt_capture="$tmp_dir/wt.log"
+WT_CAPTURE="$wt_capture" PATH="$tmp_dir/bin:/usr/bin:/bin" "$loader" --config "$config" local-tools >/dev/null
+wt_output="$(cat "$wt_capture")"
+assert_contains "$wt_output" "[new-tab]"
+assert_contains "$wt_output" "[local-tools:nvim]"
+assert_contains "$wt_output" "[local-tools:shell]"
+if [[ "$(grep -Fo '[new-tab]' <<<"$wt_output" | wc -l)" -ne 2 ]]; then
+  fail "wt launch must create exactly two tabs"
 fi
 
 docker_bin="$tmp_dir/bin"
@@ -159,7 +144,9 @@ printf '# name\tkind\ttarget\tworkspace\tcommand\n' >"$empty_config"
 docker_output="$(PATH="$docker_bin:/usr/bin:/bin" "$loader" --config "$empty_config" --dry-run)"
 assert_contains "$docker_output" "cool-app"
 assert_contains "$docker_output" "random_container"
-assert_contains "$docker_output" "tmux"
+if [[ "$docker_output" == *"tmux"* ]]; then
+  fail "docker list must not mention tmux"
+fi
 if [[ "$docker_output" == *"wsl.localhost"* ]]; then
   fail "docker project names must be shortened from UNC paths"
 fi
